@@ -1,7 +1,10 @@
 //! Coding challenge: Own version of word count (wc).
 
+pub mod iterators;
+
+
 use clap::Parser;
-use std::{fs, error};
+use std::{fs, error, str};
 
 
 /// Prints line-, word-, and byte-count for every FILE, and one line with the total count, in case
@@ -12,34 +15,43 @@ use std::{fs, error};
 #[clap(author, version, about)]
 pub struct CcWcArgs {
     /// Outputs the number of bytes.
-    #[clap(short, long, action)]
+    #[clap(short('c'), long, action)]
     pub bytes: bool,
-    /// Outputs the number of lines.
-    #[clap(short, long, action)]
+    /// Outputs the number of characters.
+    #[clap(short('m'), long, action)]
     pub chars: bool,
-    /// Outputs the number of words.
-    #[clap(short, long, action)]
+    /// Outputs the number of lines.
+    #[clap(short('l'), long, action)]
     pub lines: bool,
+    /// Outputs the number of words.
+    #[clap(short('w'), long, action)]
+    pub words: bool,
     /// Filename of file to be counted.
     pub file: String,
 }
 
 
-// fn check_next() ->  {
-// }
+/// Checks if next character in iterator is equal to c, without modifying it.
+fn check_if_next_is(chars: &str::Chars, c: char) -> bool {
+    let mut cpy = chars.clone();
+    cpy.next() == Some(c)
+}
 
 
-fn chars_lines(content: &str) -> (usize, usize) {
+fn lines_chars(content: &str) -> (usize, usize) {
     let mut lines = 0;
     let mut chars = 0;
-    content.chars().for_each(|x| {
-        if x.is_alphanumeric() {
+    let mut iter = content.chars();
+    let mut next = iter.next();
+    while let Some(c) = next {
+        if c != '\n' {
             chars += 1;
         }
-        if x == '\n' {
+        if c == '\n' && !check_if_next_is(&iter, '\n') {
             lines += 1;
         }
-    });
+        next = iter.next();
+    }
     (lines, chars)
 }
 
@@ -50,25 +62,28 @@ fn bytes(content: &str) -> usize {
 
 
 fn words(content: &str) -> usize {
-    content.rsplit(' ').count()
+    let list = iterators::WordIterator::new(content);
+    list.clone().enumerate().for_each(|(i,w)| println!("{i}: {w}"));
+    list.count()
 }
 
 
 pub fn ccwc(args: &CcWcArgs) -> Result<String, Box<dyn error::Error>> {
-    Ok(String::new())
+    let content = fs::read_to_string(&args.file)?;
+
+    let bytes = bytes(&content);
+    let words = words(&content);
+    let (lines, _chars) = lines_chars(&content);
+    
+    Ok(format!("{} {} {} {}", lines, words, bytes, args.file))
 }
 
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        ffi::OsString,
-        str::{Chars, FromStr},
-        iter::IntoIterator,
-    };
 
-    const TESTFILE: &str = "test.txt";
+    const TESTFILE: &str = "tst.txt"; // e
     const TESTFILE_MISSING: &str = "could not open default test file";
 
     #[derive(Clone, Debug)]
@@ -120,25 +135,29 @@ mod tests {
 
 
     #[test]
-    fn fn_chars_lines() {
+    fn fn_lines_chars() {
         let content = fs::read_to_string(TESTFILE).expect(TESTFILE_MISSING);
-        let (lines, chars) = chars_lines(&content);
-        assert_eq!(lines, 7137);
-        assert_eq!(chars, 339120);
+        let (lines, chars) = lines_chars(&content);
+        // assert_eq!(lines, 7137);
+        // assert_eq!(chars, 339120);
+        assert_eq!(lines, 15);
+        assert_eq!(chars, 535);
     }
 
     #[test]
     fn fn_bytes() {
         let content = fs::read_to_string(TESTFILE).expect(TESTFILE_MISSING);
         let bytes = bytes(&content);
-        assert_eq!(bytes, 341836);
+        // assert_eq!(bytes, 341836);
+        assert_eq!(bytes, 537);
     }
 
     #[test]
     fn fn_words() {
         let content = fs::read_to_string(TESTFILE).expect(TESTFILE_MISSING);
         let words = words(&content);
-        assert_eq!(words, 58159);
+        // assert_eq!(words, 58159);
+        assert_eq!(words, 94);
     }
 
     #[test]
@@ -149,21 +168,31 @@ mod tests {
 
     #[test]
     fn cc_step_2_test() {
-        todo!();
+        let result = ccwc_from("ccwc -l test.txt").expect("ccwc error");
+        assert_eq!(result, String::from("7137 test.txt"));
     }
 
     #[test]
     fn cc_step_3_test() {
-        todo!();
+        let result = ccwc_from("ccwc -w test.txt").expect("ccwc error");
+        assert_eq!(result, String::from("58159 test.txt"));
     }
 
     #[test]
     fn cc_step_4_test() {
-        todo!();
+        let result = ccwc_from("ccwc -m test.txt").expect("ccwc error");
+        assert_eq!(result, String::from("339120 test.txt"));
     }
 
-    #[test]
-    fn cc_step_5_test() {
-        todo!();
-    }
+    // #[test]
+    // fn cc_step_5_test() {
+    //     let result = ccwc_from("ccwc test.txt").expect("ccwc error");
+    //     assert_eq!(result, String::from("7137   58159  341836 test.txt"));
+    // }
+
+    // #[test]
+    // fn cc_final_step() {
+    //     // execute bash: "cat test.txt | ccwc -l"
+    //     assert_eq!(result, String::from("7137"));
+    // }
 }
