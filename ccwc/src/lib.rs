@@ -7,6 +7,7 @@ use std::{error, fs, str};
 
 pub use command::CcWcArgs;
 
+
 /// Checks if next character in iterator is equal to c, without modifying it.
 fn check_if_next_is(chars: &str::Chars, c: char) -> bool {
     let mut cpy = chars.clone();
@@ -45,6 +46,8 @@ pub fn words(content: &str) -> usize {
     iterators::WordIterator::new(content).count()
 }
 
+
+/// This is the main entry function for ccwc.
 pub fn ccwc(args: &command::CcWcArgs) -> Result<String, Box<dyn error::Error>> {
     let content = fs::read_to_string(&args.file)?;
 
@@ -52,8 +55,12 @@ pub fn ccwc(args: &command::CcWcArgs) -> Result<String, Box<dyn error::Error>> {
     let words = words(&content);
     let lines = lines(&content);
 
-    Ok(format!("{} {} {} {}", lines, words, bytes, args.file))
+    let output = vec![lines, words, bytes];
+    let digits = output.iter().max().unwrap().to_string().len();
+
+    Ok(format!("{:>digit$} {:>digit$} {:>digit$} {}", lines, words, bytes, args.file, digit=digits))
 }
+
 
 #[cfg(test)]
 mod tests {
