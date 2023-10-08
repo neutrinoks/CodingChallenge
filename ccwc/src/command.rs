@@ -2,7 +2,6 @@
 
 use clap::Parser;
 
-
 /// Prints line-, word-, and byte-count for every FILE, and one line with the total count, in case
 /// of more than one FILE is provided. Without FILE, or in case if FILE is "-", input will be read
 /// from standard input. One word is a series of non-empty characters, which are separated by
@@ -31,7 +30,6 @@ impl From<&str> for CcWcArgs {
         CcWcArgs::parse_from(CcWcArgsCommand::from(cmd))
     }
 }
-
 
 #[derive(Clone, Debug)]
 struct CcWcArgsCommand(String);
@@ -73,7 +71,6 @@ impl Iterator for CcWcArgsCommandIterator {
         }
     }
 }
-
 
 // #[cfg(test)]
 // mod tests {

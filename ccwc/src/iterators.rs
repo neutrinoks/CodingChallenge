@@ -1,6 +1,5 @@
 //! Module encapsules individual iterator implementations.
 
-
 /// Iterator for extracting words out of a text properly.
 #[derive(Clone, Debug)]
 pub struct WordIterator<'r> {
@@ -13,7 +12,7 @@ pub struct WordIterator<'r> {
 impl<'r> WordIterator<'r> {
     pub fn new(text: &'r str) -> WordIterator<'r> {
         let iter = text.char_indices();
-        WordIterator{ text, iter }
+        WordIterator { text, iter }
     }
 }
 
@@ -25,7 +24,7 @@ impl<'r> Iterator for WordIterator<'r> {
         let mut start = 0;
 
         // Step 1: Search for next beginning word.
-        while let Some((i,c)) = self.iter.next() {
+        for (i, c) in self.iter.by_ref() {
             if c.is_alphanumeric() {
                 start = i;
                 set = true;
@@ -33,12 +32,12 @@ impl<'r> Iterator for WordIterator<'r> {
             }
         }
         if !set {
-            return None
+            return None;
         }
 
         // Step 2: Search for end of this word.
         let mut stop = start;
-        while let Some((i,c)) = self.iter.next() {
+        for (i, c) in self.iter.by_ref() {
             stop = i;
             if !(c.is_alphanumeric() || c == '-' || c == '.') {
                 break;
@@ -48,7 +47,6 @@ impl<'r> Iterator for WordIterator<'r> {
         Some(&self.text[start..stop])
     }
 }
-
 
 #[cfg(test)]
 mod tests {

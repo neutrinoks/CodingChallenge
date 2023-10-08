@@ -1,12 +1,11 @@
 //! Coding challenge: Own version of word count (wc).
 
-pub mod iterators;
 pub mod command;
+pub mod iterators;
 
-use std::{fs, error, str};
+use std::{error, fs, str};
 
 pub use command::CcWcArgs;
-
 
 /// Checks if next character in iterator is equal to c, without modifying it.
 fn check_if_next_is(chars: &str::Chars, c: char) -> bool {
@@ -25,11 +24,10 @@ pub fn lines(content: &str) -> usize {
     lines
 }
 
-
 pub fn chars(content: &str) -> usize {
     let mut chars = 0;
-    let mut iter = content.char_indices();
-    while let Some((_,c)) = iter.next() {
+    let iter = content.char_indices();
+    for (_, c) in iter {
         if c.is_ascii() {
             chars += 1;
         }
@@ -37,27 +35,25 @@ pub fn chars(content: &str) -> usize {
     chars
 }
 
-
+#[inline]
 pub fn bytes(content: &str) -> usize {
-    content.len()
+    content.as_bytes().len()
 }
 
-
+#[inline]
 pub fn words(content: &str) -> usize {
     iterators::WordIterator::new(content).count()
 }
-
 
 pub fn ccwc(args: &command::CcWcArgs) -> Result<String, Box<dyn error::Error>> {
     let content = fs::read_to_string(&args.file)?;
 
     let bytes = bytes(&content);
     let words = words(&content);
-    let lines  = lines(&content);
-    
+    let lines = lines(&content);
+
     Ok(format!("{} {} {} {}", lines, words, bytes, args.file))
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -70,28 +66,28 @@ mod tests {
     fn fn_lines() {
         let content = fs::read_to_string(TESTFILE).expect(TESTFILE_MISSING);
         let lines = lines(&content);
-        assert_eq!(lines, 7137);
+        assert_eq!(lines, 7145);
     }
 
     #[test]
     fn fn_chars() {
         let content = fs::read_to_string(TESTFILE).expect(TESTFILE_MISSING);
         let chars = chars(&content);
-        assert_eq!(chars, 339120);
+        assert_eq!(chars, 339292);
     }
 
     #[test]
     fn fn_bytes() {
         let content = fs::read_to_string(TESTFILE).expect(TESTFILE_MISSING);
         let bytes = bytes(&content);
-        assert_eq!(bytes, 341836);
+        assert_eq!(bytes, 342190);
     }
 
     #[test]
     fn fn_words() {
         let content = fs::read_to_string(TESTFILE).expect(TESTFILE_MISSING);
         let words = words(&content);
-        assert_eq!(words, 58159);
+        assert_eq!(words, 58164);
     }
 
     #[test]
