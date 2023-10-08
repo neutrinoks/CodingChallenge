@@ -1,7 +1,5 @@
 //! Module encapsules individual iterator implementations.
 
-use std::str::CharIndices;
-
 
 /// Iterator for extracting words out of a text properly.
 #[derive(Clone, Debug)]
@@ -9,7 +7,7 @@ pub struct WordIterator<'r> {
     /// Source text to be iterated.
     text: &'r str,
     /// Internal iterator.
-    iter: CharIndices<'r>,
+    iter: std::str::CharIndices<'r>,
 }
 
 impl<'r> WordIterator<'r> {
@@ -59,14 +57,14 @@ mod tests {
     #[test]
     fn worditer_simple_line() {
         let text: &str = "This is a simple, single line of text.";
-        let mut iter = WordIterator::new(text);
+        let iter = WordIterator::new(text);
         assert_eq!(iter.count(), 8);
     }
 
     #[test]
     fn worditer_special_characters() {
         let text: &str = "\u{feff}This is a simple,\nvery simple\t line of text.";
-        let mut iter = WordIterator::new(text);
+        let iter = WordIterator::new(text);
         assert_eq!(iter.count(), 9);
     }
 }
