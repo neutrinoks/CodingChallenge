@@ -46,7 +46,6 @@ impl<'r> Iterator for WordIterator<'r> {
             }
         }
 
-        println!("next word: {}", &self.text[start..stop]);
         Some(&self.text[start..stop])
     }
 }

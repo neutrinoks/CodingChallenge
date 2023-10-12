@@ -55,6 +55,7 @@ impl IntoIterator for CcWcArgsCommand {
 #[derive(Clone, Debug)]
 struct CcWcArgsCommandIterator {
     command: CcWcArgsCommand,
+    // iter: std::str::Split<'_>
     index: usize,
 }
 
@@ -62,9 +63,8 @@ impl Iterator for CcWcArgsCommandIterator {
     type Item = String;
 
     fn next(&mut self) -> Option<String> {
-        let next = self.index + 1;
-        if let Some(val) = self.command.0.rsplit(' ').nth(next) {
-            self.index = next;
+        if let Some(val) = self.command.0.split(' ').nth(self.index) {
+            self.index += 1;
             Some(String::from(val))
         } else {
             None
@@ -75,6 +75,15 @@ impl Iterator for CcWcArgsCommandIterator {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn arg_iter_test() {
+        let cmd = CcWcArgsCommand(String::from("ccwc -c test.txt"));
+        let mut iter = cmd.into_iter();
+        assert_eq!(iter.next(), Some(String::from("ccwc")));
+        assert_eq!(iter.next(), Some(String::from("-c")));
+        assert_eq!(iter.next(), Some(String::from("test.txt")));
+    }
 
     #[test]
     fn args_from_only_filename() {
@@ -91,33 +100,42 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn args_from_flags() {
-    //     let args = CcWcArgs::from("ccwc -w test.txt");
-    //     assert_eq!(args, CcWcArgs{
-    //         bytes: false,
-    //         chars: false,
-    //         lines: false,
-    //         words: true,
-    //         file: String::from("test.txt"),
-    //     });
+    #[test]
+    fn args_from_flags() {
+        let args = CcWcArgs::from("ccwc -w test.txt");
+        assert_eq!(
+            args,
+            CcWcArgs {
+                bytes: false,
+                chars: false,
+                lines: false,
+                words: true,
+                file: String::from("test.txt"),
+            }
+        );
 
-    //     let args = CcWcArgs::from("ccwc -l test.txt");
-    //     assert_eq!(args, CcWcArgs{
-    //         bytes: false,
-    //         chars: false,
-    //         lines: true,
-    //         words: false,
-    //         file: String::from("test.txt"),
-    //     });
+        let args = CcWcArgs::from("ccwc -l test.txt");
+        assert_eq!(
+            args,
+            CcWcArgs {
+                bytes: false,
+                chars: false,
+                lines: true,
+                words: false,
+                file: String::from("test.txt"),
+            }
+        );
 
-    //     let args = CcWcArgs::from("ccwc -cw test.txt");
-    //     assert_eq!(args, CcWcArgs{
-    //         bytes: true,
-    //         chars: false,
-    //         lines: false,
-    //         words: true,
-    //         file: String::from("test.txt"),
-    //     });
-    // }
+        let args = CcWcArgs::from("ccwc -cw test.txt");
+        assert_eq!(
+            args,
+            CcWcArgs {
+                bytes: true,
+                chars: false,
+                lines: false,
+                words: true,
+                file: String::from("test.txt"),
+            }
+        );
+    }
 }

@@ -42,30 +42,7 @@ pub fn words(content: &str) -> usize {
     iterators::WordIterator::new(content).count()
 }
 
-/// This is the main entry function for ccwc.
-pub fn ccwc(args: &command::CcWcArgs) -> Result<String, Box<dyn error::Error>> {
-    let content = fs::read_to_string(&args.file)?;
-    let no_flags = !(args.chars || args.bytes || args.words || args.lines);
-
-    let mut dvec: Vec<usize> = Vec::new();
-    if no_flags || args.bytes {
-        dvec.push(bytes(&content));
-    }
-    if no_flags || args.words {
-        dvec.push(words(&content));
-    }
-    if no_flags || args.lines {
-        dvec.push(lines(&content));
-    }
-    if args.chars {
-        dvec.push(chars(&content));
-    }
-
-    let digits = dvec.iter().max().unwrap().to_string().len();
-
-    Ok(format_output(&dvec, &args.file, digits))
-}
-
+/// Formats output for cli.
 fn format_output(dvec: &Vec<usize>, fname: &str, digits: usize) -> String {
     match dvec.len() {
         1 => format!("{:>digit$} {}", dvec[0], fname, digit = digits),
@@ -95,6 +72,30 @@ fn format_output(dvec: &Vec<usize>, fname: &str, digits: usize) -> String {
         ),
         _ => panic!("number of outputs not supported"),
     }
+}
+
+/// This is the main entry function for ccwc.
+pub fn ccwc(args: &command::CcWcArgs) -> Result<String, Box<dyn error::Error>> {
+    let content = fs::read_to_string(&args.file)?;
+    let no_flags = !(args.chars || args.bytes || args.words || args.lines);
+
+    let mut dvec: Vec<usize> = Vec::new();
+    if no_flags || args.lines {
+        dvec.push(lines(&content));
+    }
+    if no_flags || args.words {
+        dvec.push(words(&content));
+    }
+    if no_flags || args.bytes {
+        dvec.push(bytes(&content));
+    }
+    if args.chars {
+        dvec.push(chars(&content));
+    }
+
+    let digits = dvec.iter().max().unwrap().to_string().len();
+
+    Ok(format_output(&dvec, &args.file, digits))
 }
 
 #[cfg(test)]
@@ -136,36 +137,36 @@ mod tests {
     fn cc_step_1_test() {
         let args = CcWcArgs::from("ccwc -c test.txt");
         let result = ccwc(&args).expect("ccwc error");
-        assert_eq!(result, String::from("341836 test.txt"));
+        assert_eq!(result, String::from("342190 test.txt"));
     }
 
     #[test]
     fn cc_step_2_test() {
         let args = CcWcArgs::from("ccwc -l test.txt");
         let result = ccwc(&args).expect("ccwc error");
-        assert_eq!(result, String::from("7137 test.txt"));
+        assert_eq!(result, String::from("7145 test.txt"));
     }
 
     #[test]
     fn cc_step_3_test() {
         let args = CcWcArgs::from("ccwc -w test.txt");
         let result = ccwc(&args).expect("ccwc error");
-        assert_eq!(result, String::from("58159 test.txt"));
+        assert_eq!(result, String::from("58164 test.txt"));
     }
 
     #[test]
     fn cc_step_4_test() {
         let args = CcWcArgs::from("ccwc -m test.txt");
         let result = ccwc(&args).expect("ccwc error");
-        assert_eq!(result, String::from("339120 test.txt"));
+        assert_eq!(result, String::from("339292 test.txt"));
     }
 
-    // #[test]
-    // fn cc_step_5_test() {
-    //     let args = CcWcArgs::from();
-    //     let result = ccwc_from("ccwc test.txt").expect("ccwc error");
-    //     assert_eq!(result, String::from("7137   58159  341836 test.txt"));
-    // }
+    #[test]
+    fn cc_step_5_test() {
+        let args = CcWcArgs::from("ccwc test.txt");
+        let result = ccwc(&args).expect("ccwc error");
+        assert_eq!(result, String::from("  7145  58164 342190 test.txt"));
+    }
 
     // #[test]
     // fn cc_final_step() {
