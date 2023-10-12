@@ -6,7 +6,7 @@ use clap::Parser;
 /// of more than one FILE is provided. Without FILE, or in case if FILE is "-", input will be read
 /// from standard input. One word is a series of non-empty characters, which are separated by
 /// spaces.
-#[derive(Debug, Parser)]
+#[derive(Debug, Eq, PartialEq, Parser)]
 #[clap(author, version, about)]
 pub struct CcWcArgs {
     /// Outputs the number of bytes.
@@ -72,7 +72,52 @@ impl Iterator for CcWcArgsCommandIterator {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     // this is indirectly tested by our main tests.
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn args_from_only_filename() {
+        let args = CcWcArgs::from("ccwc test.txt");
+        assert_eq!(
+            args,
+            CcWcArgs {
+                bytes: false,
+                chars: false,
+                lines: false,
+                words: false,
+                file: String::from("test.txt"),
+            }
+        );
+    }
+
+    // #[test]
+    // fn args_from_flags() {
+    //     let args = CcWcArgs::from("ccwc -w test.txt");
+    //     assert_eq!(args, CcWcArgs{
+    //         bytes: false,
+    //         chars: false,
+    //         lines: false,
+    //         words: true,
+    //         file: String::from("test.txt"),
+    //     });
+
+    //     let args = CcWcArgs::from("ccwc -l test.txt");
+    //     assert_eq!(args, CcWcArgs{
+    //         bytes: false,
+    //         chars: false,
+    //         lines: true,
+    //         words: false,
+    //         file: String::from("test.txt"),
+    //     });
+
+    //     let args = CcWcArgs::from("ccwc -cw test.txt");
+    //     assert_eq!(args, CcWcArgs{
+    //         bytes: true,
+    //         chars: false,
+    //         lines: false,
+    //         words: true,
+    //         file: String::from("test.txt"),
+    //     });
+    // }
+}

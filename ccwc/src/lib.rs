@@ -7,13 +7,11 @@ use std::{error, fs, str};
 
 pub use command::CcWcArgs;
 
-
 /// Checks if next character in iterator is equal to c, without modifying it.
 fn check_next_is(chars: &str::Chars, c: char) -> bool {
     let mut cpy = chars.clone();
     Some(c) == cpy.next()
 }
-
 
 /// Main count function for lines in text.
 pub fn lines(content: &str) -> usize {
@@ -27,12 +25,10 @@ pub fn lines(content: &str) -> usize {
     lines
 }
 
-
 /// Main count function for characters in text.
 pub fn chars(content: &str) -> usize {
     content.char_indices().count()
 }
-
 
 /// Main count function for number of bytes of this text.
 #[inline]
@@ -40,28 +36,66 @@ pub fn bytes(content: &str) -> usize {
     content.as_bytes().len()
 }
 
-
 /// Main count function for number of words in text.
 #[inline]
 pub fn words(content: &str) -> usize {
     iterators::WordIterator::new(content).count()
 }
 
-
 /// This is the main entry function for ccwc.
 pub fn ccwc(args: &command::CcWcArgs) -> Result<String, Box<dyn error::Error>> {
     let content = fs::read_to_string(&args.file)?;
+    let no_flags = !(args.chars || args.bytes || args.words || args.lines);
 
-    let bytes = bytes(&content);
-    let words = words(&content);
-    let lines = lines(&content);
+    let mut dvec: Vec<usize> = Vec::new();
+    if no_flags || args.bytes {
+        dvec.push(bytes(&content));
+    }
+    if no_flags || args.words {
+        dvec.push(words(&content));
+    }
+    if no_flags || args.lines {
+        dvec.push(lines(&content));
+    }
+    if args.chars {
+        dvec.push(chars(&content));
+    }
 
-    let output = vec![lines, words, bytes];
-    let digits = output.iter().max().unwrap().to_string().len();
+    let digits = dvec.iter().max().unwrap().to_string().len();
 
-    Ok(format!("{:>digit$} {:>digit$} {:>digit$} {}", lines, words, bytes, args.file, digit=digits))
+    Ok(format_output(&dvec, &args.file, digits))
 }
 
+fn format_output(dvec: &Vec<usize>, fname: &str, digits: usize) -> String {
+    match dvec.len() {
+        1 => format!("{:>digit$} {}", dvec[0], fname, digit = digits),
+        2 => format!(
+            "{:>digit$} {:>digit$} {}",
+            dvec[0],
+            dvec[1],
+            fname,
+            digit = digits
+        ),
+        3 => format!(
+            "{:>digit$} {:>digit$} {:>digit$} {}",
+            dvec[0],
+            dvec[1],
+            dvec[2],
+            fname,
+            digit = digits
+        ),
+        4 => format!(
+            "{:>digit$} {:>digit$} {:>digit$} {:>digit$} {}",
+            dvec[0],
+            dvec[1],
+            dvec[2],
+            dvec[3],
+            fname,
+            digit = digits
+        ),
+        _ => panic!("number of outputs not supported"),
+    }
+}
 
 #[cfg(test)]
 mod tests {
