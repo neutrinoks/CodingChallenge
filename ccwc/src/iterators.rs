@@ -25,7 +25,8 @@ impl<'r> Iterator for WordIterator<'r> {
 
         // Step 1: Search for next beginning word.
         for (i, c) in self.iter.by_ref() {
-            if c.is_alphanumeric() {
+            // if c.is_alphanumeric() {
+            if !c.is_whitespace() {
                 start = i;
                 set = true;
                 break;
@@ -39,11 +40,13 @@ impl<'r> Iterator for WordIterator<'r> {
         let mut stop = start;
         for (i, c) in self.iter.by_ref() {
             stop = i;
-            if !(c.is_alphanumeric() || c == '-' || c == '.') {
+            // if !(c.is_alphanumeric() || c == '-' || c == '.') {
+            if c.is_whitespace() {
                 break;
             }
         }
 
+        println!("next word: {}", &self.text[start..stop]);
         Some(&self.text[start..stop])
     }
 }

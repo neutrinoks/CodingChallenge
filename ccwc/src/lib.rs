@@ -9,38 +9,39 @@ pub use command::CcWcArgs;
 
 
 /// Checks if next character in iterator is equal to c, without modifying it.
-fn check_if_next_is(chars: &str::Chars, c: char) -> bool {
+fn check_next_is(chars: &str::Chars, c: char) -> bool {
     let mut cpy = chars.clone();
     Some(c) == cpy.next()
 }
 
+
+/// Main count function for lines in text.
 pub fn lines(content: &str) -> usize {
     let mut lines = 0;
     let mut iter = content.chars();
     while let Some(c) = iter.next() {
-        if c == '\n' && !check_if_next_is(&iter, '\n') {
+        if c == '\n' && !check_next_is(&iter, '\n') {
             lines += 1;
         }
     }
     lines
 }
 
+
+/// Main count function for characters in text.
 pub fn chars(content: &str) -> usize {
-    let mut chars = 0;
-    let iter = content.char_indices();
-    for (_, c) in iter {
-        if c.is_ascii() {
-            chars += 1;
-        }
-    }
-    chars
+    content.char_indices().count()
 }
 
+
+/// Main count function for number of bytes of this text.
 #[inline]
 pub fn bytes(content: &str) -> usize {
     content.as_bytes().len()
 }
 
+
+/// Main count function for number of words in text.
 #[inline]
 pub fn words(content: &str) -> usize {
     iterators::WordIterator::new(content).count()
