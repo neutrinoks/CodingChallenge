@@ -3,9 +3,9 @@
 pub mod command;
 pub mod iterators;
 
-use std::{error, fs, str};
+use std::{error, str};
 
-pub use command::CcWcArgs;
+pub use command::{CcWcArgs, CcWcInput};
 
 /// Checks if next character in iterator is equal to c, without modifying it.
 fn check_next_is(chars: &str::Chars, c: char) -> bool {
@@ -43,31 +43,28 @@ pub fn words(content: &str) -> usize {
 }
 
 /// Formats output for cli.
-fn format_output(dvec: &Vec<usize>, fname: &str, digits: usize) -> String {
+fn format_output(dvec: &Vec<usize>, digits: usize) -> String {
     match dvec.len() {
-        1 => format!("{:>digit$} {}", dvec[0], fname, digit = digits),
+        1 => format!("{:>digit$}", dvec[0], digit = digits),
         2 => format!(
-            "{:>digit$} {:>digit$} {}",
+            "{:>digit$} {:>digit$}",
             dvec[0],
             dvec[1],
-            fname,
             digit = digits
         ),
         3 => format!(
-            "{:>digit$} {:>digit$} {:>digit$} {}",
+            "{:>digit$} {:>digit$} {:>digit$}",
             dvec[0],
             dvec[1],
             dvec[2],
-            fname,
             digit = digits
         ),
         4 => format!(
-            "{:>digit$} {:>digit$} {:>digit$} {:>digit$} {}",
+            "{:>digit$} {:>digit$} {:>digit$} {:>digit$}",
             dvec[0],
             dvec[1],
             dvec[2],
             dvec[3],
-            fname,
             digit = digits
         ),
         _ => panic!("number of outputs not supported"),
@@ -75,27 +72,30 @@ fn format_output(dvec: &Vec<usize>, fname: &str, digits: usize) -> String {
 }
 
 /// This is the main entry function for ccwc.
-pub fn ccwc(args: &command::CcWcArgs) -> Result<String, Box<dyn error::Error>> {
-    let content = fs::read_to_string(&args.file)?;
-    let no_flags = !(args.chars || args.bytes || args.words || args.lines);
+pub fn ccwc(input: &command::CcWcInput) -> Result<String, Box<dyn error::Error>> {
+    let no_flags = !(input.args.chars || input.args.bytes || input.args.words || input.args.lines);
 
     let mut dvec: Vec<usize> = Vec::new();
-    if no_flags || args.lines {
-        dvec.push(lines(&content));
+    if no_flags || input.args.lines {
+        dvec.push(lines(&input.content));
     }
-    if no_flags || args.words {
-        dvec.push(words(&content));
+    if no_flags || input.args.words {
+        dvec.push(words(&input.content));
     }
-    if no_flags || args.bytes {
-        dvec.push(bytes(&content));
+    if no_flags || input.args.bytes {
+        dvec.push(bytes(&input.content));
     }
-    if args.chars {
-        dvec.push(chars(&content));
+    if input.args.chars {
+        dvec.push(chars(&input.content));
     }
-
     let digits = dvec.iter().max().unwrap().to_string().len();
-
-    Ok(format_output(&dvec, &args.file, digits))
+    
+    let mut output = format_output(&dvec, digits);
+    if let Some(file) = &input.args.file {
+        output.push(' ');
+        output.push_str(file);
+    }
+    Ok(output)
 }
 
 #[cfg(test)]
@@ -168,9 +168,13 @@ mod tests {
         assert_eq!(result, String::from("  7145  58164 342190 test.txt"));
     }
 
-    // #[test]
-    // fn cc_final_step() {
-    //     // execute bash: "cat test.txt | ccwc -l"
-    //     assert_eq!(result, String::from("7137"));
-    // }
+    #[test]
+    fn cc_final_step() {
+        // execute bash: "cat test.txt | ccwc -l"
+        let output = std::process::Command::new("cat test.txt | ccwc -l")
+            .arg("Hello world")
+            .output()
+            .expect("Failed to execute command");
+        assert_eq!(b"7137\n", output.stdout.as_slice());
+    }
 }

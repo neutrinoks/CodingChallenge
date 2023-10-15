@@ -1,12 +1,61 @@
 //! Encapsules command line interface related implementations.
 
 use clap::Parser;
+use std::io::{Read, BufReader, IsTerminal};
+
+
+/// The whole input data for main function (parameters and text to be processed).
+#[derive(Debug)]
+pub struct CcWcInput {
+    /// CLI parameters.
+    pub args: CcWcArgs,
+    /// Content to be analyzed.
+    pub content: String,
+}
+
+impl CcWcInput {
+    /// Default method to process user input from command line. Method checks whether stdin was used to
+    /// path a text to be analyzed or a filename was passed to be read in.
+    pub fn parse_input() -> Result<CcWcInput, Box<dyn std::error::Error>> {
+        let mut content = String::new();
+        let args = if std::io::stdin().is_terminal() {
+            // No usage of stdin, a filename should be provided.
+            let args = CcWcArgs::parse();
+            if let Some(file) = &args.file {
+                content = std::fs::read_to_string(file)?;
+            } else {
+                return Err(String::from("No input file or data was provided").into())
+            }
+            args
+        } else {
+            // Stdin provides content input, no filename should be provided.
+            let mut reader = BufReader::new(std::io::stdin());
+            reader.read_to_string(&mut content)?;
+            let mut args = CcWcArgs::parse();
+            if let Some(file) = args.file {
+                println!("Warning: file `{}` will be ignored because stdin-input was provided", file);
+                args.file = None;
+            }
+            args
+        };
+
+        Ok(CcWcInput{ args, content })
+    }
+}
+
+
+// #[derive(Debug, Clone)]
+// pub enum CcWcError {
+//     /// Emitted if no input file was specified nor content via stdin provided.
+//     NoInputDataOrFile,
+// }
+
 
 /// Prints line-, word-, and byte-count for every FILE, and one line with the total count, in case
 /// of more than one FILE is provided. Without FILE, or in case if FILE is "-", input will be read
 /// from standard input. One word is a series of non-empty characters, which are separated by
 /// spaces.
-#[derive(Debug, Eq, PartialEq, Parser)]
+#[derive(Debug, Parser)]
 #[clap(author, version, about)]
 pub struct CcWcArgs {
     /// Outputs the number of bytes.
@@ -22,7 +71,7 @@ pub struct CcWcArgs {
     #[clap(short('w'), long, action)]
     pub words: bool,
     /// Filename of file to be counted.
-    pub file: String,
+    pub file: Option<String>,
 }
 
 impl From<&str> for CcWcArgs {
@@ -88,54 +137,31 @@ mod tests {
     #[test]
     fn args_from_only_filename() {
         let args = CcWcArgs::from("ccwc test.txt");
-        assert_eq!(
-            args,
-            CcWcArgs {
-                bytes: false,
-                chars: false,
-                lines: false,
-                words: false,
-                file: String::from("test.txt"),
-            }
-        );
+        assert_eq!(args.bytes, false);
+        assert_eq!(args.chars, false);
+        assert_eq!(args.lines, false);
+        assert_eq!(args.words, false);
+        assert_eq!(args.file.to_string(), std::fs::read_to_string("test.txt").expect("missing test file"));
     }
 
     #[test]
     fn args_from_flags() {
         let args = CcWcArgs::from("ccwc -w test.txt");
-        assert_eq!(
-            args,
-            CcWcArgs {
-                bytes: false,
-                chars: false,
-                lines: false,
-                words: true,
-                file: String::from("test.txt"),
-            }
-        );
+        assert_eq!(args.bytes, false);
+        assert_eq!(args.chars, false);
+        assert_eq!(args.lines, false);
+        assert_eq!(args.words, true);
 
         let args = CcWcArgs::from("ccwc -l test.txt");
-        assert_eq!(
-            args,
-            CcWcArgs {
-                bytes: false,
-                chars: false,
-                lines: true,
-                words: false,
-                file: String::from("test.txt"),
-            }
-        );
+        assert_eq!(args.bytes, false);
+        assert_eq!(args.chars, false);
+        assert_eq!(args.lines, true);
+        assert_eq!(args.words, false);
 
         let args = CcWcArgs::from("ccwc -cw test.txt");
-        assert_eq!(
-            args,
-            CcWcArgs {
-                bytes: true,
-                chars: false,
-                lines: false,
-                words: true,
-                file: String::from("test.txt"),
-            }
-        );
+        assert_eq!(args.bytes, true);
+        assert_eq!(args.chars, false);
+        assert_eq!(args.lines, false);
+        assert_eq!(args.words, true);
     }
 }
