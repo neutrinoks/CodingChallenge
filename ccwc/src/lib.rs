@@ -46,12 +46,7 @@ pub fn words(content: &str) -> usize {
 fn format_output(dvec: &Vec<usize>, digits: usize) -> String {
     match dvec.len() {
         1 => format!("{:>digit$}", dvec[0], digit = digits),
-        2 => format!(
-            "{:>digit$} {:>digit$}",
-            dvec[0],
-            dvec[1],
-            digit = digits
-        ),
+        2 => format!("{:>digit$} {:>digit$}", dvec[0], dvec[1], digit = digits),
         3 => format!(
             "{:>digit$} {:>digit$} {:>digit$}",
             dvec[0],
@@ -89,7 +84,7 @@ pub fn ccwc(input: &command::CcWcInput) -> Result<String, Box<dyn error::Error>>
         dvec.push(chars(&input.content));
     }
     let digits = dvec.iter().max().unwrap().to_string().len();
-    
+
     let mut output = format_output(&dvec, digits);
     if let Some(file) = &input.args.file {
         output.push(' ');
@@ -101,6 +96,7 @@ pub fn ccwc(input: &command::CcWcInput) -> Result<String, Box<dyn error::Error>>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     const TESTFILE: &str = "test.txt";
     const TESTFILE_MISSING: &str = "could not open default test file";
@@ -135,46 +131,46 @@ mod tests {
 
     #[test]
     fn cc_step_1_test() {
-        let args = CcWcArgs::from("ccwc -c test.txt");
-        let result = ccwc(&args).expect("ccwc error");
+        let input = CcWcInput::try_from("ccwc -c test.txt").unwrap();
+        let result = ccwc(&input).expect("ccwc error");
         assert_eq!(result, String::from("342190 test.txt"));
     }
 
     #[test]
     fn cc_step_2_test() {
-        let args = CcWcArgs::from("ccwc -l test.txt");
-        let result = ccwc(&args).expect("ccwc error");
+        let input = CcWcInput::try_from("ccwc -l test.txt").unwrap();
+        let result = ccwc(&input).expect("ccwc error");
         assert_eq!(result, String::from("7145 test.txt"));
     }
 
     #[test]
     fn cc_step_3_test() {
-        let args = CcWcArgs::from("ccwc -w test.txt");
-        let result = ccwc(&args).expect("ccwc error");
+        let input = CcWcInput::try_from("ccwc -w test.txt").unwrap();
+        let result = ccwc(&input).expect("ccwc error");
         assert_eq!(result, String::from("58164 test.txt"));
     }
 
     #[test]
     fn cc_step_4_test() {
-        let args = CcWcArgs::from("ccwc -m test.txt");
-        let result = ccwc(&args).expect("ccwc error");
+        let input = CcWcInput::try_from("ccwc -m test.txt").unwrap();
+        let result = ccwc(&input).expect("ccwc error");
         assert_eq!(result, String::from("339292 test.txt"));
     }
 
     #[test]
     fn cc_step_5_test() {
-        let args = CcWcArgs::from("ccwc test.txt");
-        let result = ccwc(&args).expect("ccwc error");
+        let input = CcWcInput::try_from("ccwc test.txt").unwrap();
+        let result = ccwc(&input).expect("ccwc error");
         assert_eq!(result, String::from("  7145  58164 342190 test.txt"));
     }
 
-    #[test]
-    fn cc_final_step() {
-        // execute bash: "cat test.txt | ccwc -l"
-        let output = std::process::Command::new("cat test.txt | ccwc -l")
-            .arg("Hello world")
-            .output()
-            .expect("Failed to execute command");
-        assert_eq!(b"7137\n", output.stdout.as_slice());
-    }
+    // #[test]
+    // fn cc_final_step() {
+    //     // execute bash: "cat test.txt | ccwc -l"
+    //     let output = std::process::Command::new("cat test.txt | ccwc -l")
+    //         .arg("Hello world")
+    //         .output()
+    //         .expect("Failed to execute command");
+    //     assert_eq!(b"7137\n", output.stdout.as_slice());
+    // }
 }

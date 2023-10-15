@@ -1,8 +1,10 @@
 //! Encapsules command line interface related implementations.
 
 use clap::Parser;
-use std::io::{Read, BufReader, IsTerminal};
-
+use std::{
+    error, fs,
+    io::{self, BufReader, IsTerminal, Read},
+};
 
 /// The whole input data for main function (parameters and text to be processed).
 #[derive(Debug)]
@@ -16,40 +18,48 @@ pub struct CcWcInput {
 impl CcWcInput {
     /// Default method to process user input from command line. Method checks whether stdin was used to
     /// path a text to be analyzed or a filename was passed to be read in.
-    pub fn parse_input() -> Result<CcWcInput, Box<dyn std::error::Error>> {
+    pub fn parse_input() -> Result<CcWcInput, Box<dyn error::Error>> {
         let mut content = String::new();
-        let args = if std::io::stdin().is_terminal() {
+        let args = if io::stdin().is_terminal() {
             // No usage of stdin, a filename should be provided.
             let args = CcWcArgs::parse();
             if let Some(file) = &args.file {
-                content = std::fs::read_to_string(file)?;
+                content = fs::read_to_string(file)?;
             } else {
-                return Err(String::from("No input file or data was provided").into())
+                return Err(String::from("No input file or data was provided").into());
             }
             args
         } else {
             // Stdin provides content input, no filename should be provided.
-            let mut reader = BufReader::new(std::io::stdin());
+            let mut reader = BufReader::new(io::stdin());
             reader.read_to_string(&mut content)?;
             let mut args = CcWcArgs::parse();
             if let Some(file) = args.file {
-                println!("Warning: file `{}` will be ignored because stdin-input was provided", file);
+                println!(
+                    "Warning: file `{}` will be ignored because stdin-input was provided",
+                    file
+                );
                 args.file = None;
             }
             args
         };
 
-        Ok(CcWcInput{ args, content })
+        Ok(CcWcInput { args, content })
     }
 }
 
+impl TryFrom<&str> for CcWcInput {
+    type Error = Box<dyn error::Error>;
 
-// #[derive(Debug, Clone)]
-// pub enum CcWcError {
-//     /// Emitted if no input file was specified nor content via stdin provided.
-//     NoInputDataOrFile,
-// }
-
+    fn try_from(cmd: &str) -> Result<CcWcInput, Self::Error> {
+        let args = CcWcArgs::parse_from(CcWcArgsCommand::from(cmd));
+        if args.file.is_none() {
+            return Err(io::Error::new(io::ErrorKind::Other, "no file has been specified").into());
+        }
+        let content = fs::read_to_string(args.file.as_ref().unwrap())?;
+        Ok(CcWcInput { args, content })
+    }
+}
 
 /// Prints line-, word-, and byte-count for every FILE, and one line with the total count, in case
 /// of more than one FILE is provided. Without FILE, or in case if FILE is "-", input will be read
@@ -141,7 +151,7 @@ mod tests {
         assert_eq!(args.chars, false);
         assert_eq!(args.lines, false);
         assert_eq!(args.words, false);
-        assert_eq!(args.file.to_string(), std::fs::read_to_string("test.txt").expect("missing test file"));
+        assert_eq!(args.file, Some(String::from("test.txt")));
     }
 
     #[test]
