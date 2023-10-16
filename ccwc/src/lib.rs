@@ -164,13 +164,10 @@ mod tests {
         assert_eq!(result, String::from("  7145  58164 342190 test.txt"));
     }
 
+    // Integration test, manually via shell...
     // #[test]
     // fn cc_final_step() {
     //     // execute bash: "cat test.txt | ccwc -l"
-    //     let output = std::process::Command::new("cat test.txt | ccwc -l")
-    //         .arg("Hello world")
-    //         .output()
-    //         .expect("Failed to execute command");
-    //     assert_eq!(b"7137\n", output.stdout.as_slice());
+    //     assert_eq!(b"7145\n", output.stdout.as_slice());
     // }
 }

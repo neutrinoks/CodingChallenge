@@ -91,43 +91,20 @@ impl From<&str> for CcWcArgs {
 }
 
 #[derive(Clone, Debug)]
-struct CcWcArgsCommand(String);
+struct CcWcArgsCommand<'r>(&'r str);
 
-impl From<&str> for CcWcArgsCommand {
-    fn from(input: &str) -> CcWcArgsCommand {
-        CcWcArgsCommand(String::from(input))
+impl<'r> From<&'r str> for CcWcArgsCommand<'r> {
+    fn from(input: &'r str) -> CcWcArgsCommand<'r> {
+        CcWcArgsCommand(input)
     }
 }
 
-impl IntoIterator for CcWcArgsCommand {
-    type Item = String;
-    type IntoIter = CcWcArgsCommandIterator;
+impl<'r> IntoIterator for CcWcArgsCommand<'r> {
+    type Item = &'r str;
+    type IntoIter = std::str::Split<'r, char>;
 
     fn into_iter(self) -> Self::IntoIter {
-        CcWcArgsCommandIterator {
-            command: self,
-            index: 0,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-struct CcWcArgsCommandIterator {
-    command: CcWcArgsCommand,
-    // iter: std::str::Split<'_>
-    index: usize,
-}
-
-impl Iterator for CcWcArgsCommandIterator {
-    type Item = String;
-
-    fn next(&mut self) -> Option<String> {
-        if let Some(val) = self.command.0.split(' ').nth(self.index) {
-            self.index += 1;
-            Some(String::from(val))
-        } else {
-            None
-        }
+        self.0.split(' ')
     }
 }
 
@@ -137,11 +114,11 @@ mod tests {
 
     #[test]
     fn arg_iter_test() {
-        let cmd = CcWcArgsCommand(String::from("ccwc -c test.txt"));
+        let cmd = CcWcArgsCommand("ccwc -c test.txt");
         let mut iter = cmd.into_iter();
-        assert_eq!(iter.next(), Some(String::from("ccwc")));
-        assert_eq!(iter.next(), Some(String::from("-c")));
-        assert_eq!(iter.next(), Some(String::from("test.txt")));
+        assert_eq!(iter.next(), Some("ccwc"));
+        assert_eq!(iter.next(), Some("-c"));
+        assert_eq!(iter.next(), Some("test.txt"));
     }
 
     #[test]
