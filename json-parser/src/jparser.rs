@@ -13,15 +13,10 @@
 
 use JLexerToken::*;
 
+/// Internal macro for do-not-repeat-yourself
 macro_rules! whitespace_pat {
     () => {
         ' ' | '\n' | '\r' | '\t'
-    }
-}
-
-macro_rules! number_pat {
-    () => {
-        '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '.'
     }
 }
 
@@ -68,26 +63,26 @@ impl JLexerToken {
         }
     }
 
-    pub fn is_number_integer(&self) -> bool {
-        match self {
-            NumberInteger(_) => true,
-            _ => false,
-        }
-    }
+    // pub fn is_number_integer(&self) -> bool {
+    //     match self {
+    //         NumberInteger(_) => true,
+    //         _ => false,
+    //     }
+    // }
 
-    pub fn is_number_float(&self) -> bool {
-        match self {
-            NumberFloat(_) => true,
-            _ => false,
-        }
-    }
+    // pub fn is_number_float(&self) -> bool {
+    //     match self {
+    //         NumberFloat(_) => true,
+    //         _ => false,
+    //     }
+    // }
 
-    pub fn is_unknown_token(&self) -> bool {
-        match self {
-            UnknownToken(_) => true,
-            _ => false,
-        }
-    }
+    // pub fn is_unknown_token(&self) -> bool {
+    //     match self {
+    //         UnknownToken(_) => true,
+    //         _ => false,
+    //     }
+    // }
 }
 
 // type LexIterType<'s> = std::iter::Peekable<std::str::CharIndices<'s>>;
@@ -125,6 +120,7 @@ type MidLexerOutput = Option<(JLexerToken, usize)>;
 
 impl<'s> JLexer<'s> {
     /// New type pattern: Generates a new lexer with given source string slice.
+    #[cfg(test)] // temporary
     pub fn new(source: &str) -> JLexer {
         JLexer{
             source,
@@ -145,14 +141,33 @@ impl<'s> JLexer<'s> {
             })
     }
 
+    fn try_lex_number(&mut self) -> MidLexerOutput {
+        seek_until(&mut self.iter, is_number)
+            .and_then(|(start,stop)| {
+                let slice = &self.source[start..stop];
+                println!("seek_until result: {}", slice);
+                if slice.contains('.') {
+                    if let Ok(number) = slice.parse::<f64>() {
+                        Some((NumberFloat(number), start))
+                    } else {
+                        Some((UnknownToken(String::from(slice)), start))
+                    }
+                } else {
+                    if let Ok(number) = slice.parse::<isize>() {
+                        Some((NumberInteger(number), start))
+                    } else {
+                        Some((UnknownToken(String::from(slice)), start))
+                    }
+                }
+            })
+    }
+
     fn lex_non_string(&mut self) -> MidLexerOutput {
-        if let Some((p,c)) = self.iter.next() {
+        self.iter.next().map(|(p,c)| {
             let token = match c {
                 whitespace_pat!() => {
                     // Check following characters, and skip the whole whitespace series.
-                    while check_if_next_fits(&self.iter, is_whitespace) == Some(true) {
-                        self.iter.next();
-                    }
+                    seek_until(&mut self.iter, is_whitespace);
                     Whitespace
                 },
                 '{' => ObjectBegin,
@@ -174,40 +189,32 @@ impl<'s> JLexer<'s> {
                     // Check if null-token, otherwise UnknownToken
                     NullToken
                 },
-                // StringContent(String),
-                number_pat!() => {
-                    // Parse number, check if integer or float.
-                    let number = 0; // TODO
-                    NumberInteger(number)
-                    // NumberFloat(f64),
-                },
                 _ => UnknownToken(c.into()),
             };
-            Some((token,p))
-        } else {
-            None
-        }
+            (token,p)
+        })
     }
-
-    // fn finished_string_lexing(&self) -> bool {
-    //     self.last[0].is_string_content() && self.last_tk[1] == StringToken
-    // }
 }
 
 impl<'s> Iterator for JLexer<'s> {
     type Item = (JLexerToken, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
-        // This whole if-else-block shall return Option<(JLexerToken,usize)>
-        if self.expects_string_content() {
-            let result = self.try_lex_string();
-            if result.is_none() {
-                self.lex_non_string()
-            } else {
-                result
-            }
+        // First check for expected strings or possible numbers.
+        let result = if self.expects_string_content() {
+            self.try_lex_string()
+        } else if check_if_next_fits(&self.iter, is_number) {
+            println!("next is probably number...");
+            self.try_lex_number()
         } else {
+            None
+        };
+
+        // Then do regular single token lexing.
+        if result.is_none() {
             self.lex_non_string()
+        } else {
+            result
         }
         .and_then(|(tk,p)| {
             self.last_tk[0] = self.last_tk[1].clone();
@@ -227,7 +234,8 @@ fn is_whitespace(c: char) -> bool {
 
 fn is_number(c: char) -> bool {
     match c {
-        number_pat!() => true,
+        '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => true,
+        '.' => true,
         _ => false,
     }
 }
@@ -237,31 +245,31 @@ fn crib_next(iter: &LexIterType<'_>) -> Option<(usize,char)> {
     iter.clone().next()
 }
 
-/// Checks if next char is equal to 'c' without modifying original iterator.
-fn check_if_next_is(iter: &LexIterType<'_>, c: char) -> Option<bool> {
-    crib_next(iter).map(|(_i,ci)| ci == c)
-}
+// /// Checks if next char is equal to 'c' without modifying original iterator.
+// fn check_if_next_is(iter: &LexIterType<'_>, c: char) -> bool {
+//     crib_next(iter).is_some_and(|(_,ci)| ci == c)
+// }
 
 /// Checks if next char matches pattern provided by function without modifying original iterator.
-fn check_if_next_fits(iter: &LexIterType<'_>, pat: fn(char) -> bool) -> Option<bool> {
-    crib_next(iter).map(|(_i,c)| pat(c))
+fn check_if_next_fits(iter: &LexIterType<'_>, pat: fn(char) -> bool) -> bool {
+    crib_next(iter).is_some_and(|(_,c)| pat(c))
 }
 
 /// Methods seeks iterator forward until f_next cancels process and returns String.
 /// f_next() shall return true if next does also belong to that string to be seeked, and false if
 /// seeking shall stop with current character.
 fn seek_until(iter: &mut LexIterType<'_>, f_next: fn(char) -> bool) -> Option<(usize, usize)> {
-    // println!("start seeking...");
     let mut iter_peek = iter.clone();
     let mut start = 0;
 
     if let Some((p,c)) = iter_peek.next()  {
         if f_next(c) {
-            // println!("first character is {} at pos {}", c, p);
             start = p;
             iter.next();
         }
     }
+    // Be aware: this implies, that the very first character is never a sequence, because every
+    // JSON-file starts with a single token ('{').
     if start == 0 { return None }
 
     let mut stop = start;
@@ -269,14 +277,11 @@ fn seek_until(iter: &mut LexIterType<'_>, f_next: fn(char) -> bool) -> Option<(u
         if f_next(c) {
             stop = p;
             iter.next();
-            // println!("current is {} and we continue", c);
         } else {
-            // println!("current is {} and we stop seeking", c);
             break
         }
     }
     
-    // println!("we took string slice [{}..{}]", start, stop+1);
     Some((start, stop+1))
 }
 
@@ -330,7 +335,10 @@ mod tests {
         assert_cmp!(lexer, StringContent(String::from("value2")), 34);
         assert_cmp!(lexer, StringToken, 40);
         assert_cmp!(lexer, ObjectEnd, 41);
+    }
 
+    #[test]
+    fn empty_string_literals() {
         let mut lexer = JLexer::new("\"\" \"test");
         assert_cmp!(lexer, StringToken, 1);
         assert_cmp!(lexer, StringToken, 2);
@@ -341,7 +349,31 @@ mod tests {
 
     #[test]
     fn tokens_with_numbers() {
-        todo!();
-        let mut lexer = JLexer::new("\"age\": 15, \"weight\": 55.7");
+        let mut lexer = JLexer::new("\"age\":15,\"weight\": 55.7 ");
+        assert_cmp!(lexer, StringToken, 1);
+        assert_cmp!(lexer, StringContent(String::from("age")), 2);
+        assert_cmp!(lexer, StringToken, 5);
+        assert_cmp!(lexer, NameSeparator, 6);
+        assert_cmp!(lexer, NumberInteger(15), 7);
+        assert_cmp!(lexer, ValueSeparator, 9);
+        assert_cmp!(lexer, StringToken, 10);
+        assert_cmp!(lexer, StringContent(String::from("weight")), 11);
+        assert_cmp!(lexer, StringToken, 17);
+        assert_cmp!(lexer, NameSeparator, 18);
+        assert_cmp!(lexer, Whitespace, 19);
+        assert_cmp!(lexer, NumberFloat(55.7), 20);
+        assert_cmp!(lexer, Whitespace, 24);
+    }
+
+    #[test]
+    fn shortcut_floating_point_values() {
+        let mut lexer = JLexer::new("{.7 10 15.}");
+        assert_cmp!(lexer, ObjectBegin, 1);
+        assert_cmp!(lexer, NumberFloat(0.7), 2);
+        assert_cmp!(lexer, Whitespace, 4);
+        assert_cmp!(lexer, NumberInteger(10), 5);
+        assert_cmp!(lexer, Whitespace, 7);
+        assert_cmp!(lexer, NumberFloat(15.0), 8);
+        assert_cmp!(lexer, ObjectEnd, 11);
     }
 }
