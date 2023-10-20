@@ -60,6 +60,38 @@ pub enum JLexerToken {
     UnknownToken(String),
 }
 
+impl JLexerToken {
+    pub fn is_string_content(&self) -> bool {
+        match self {
+            StringContent(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_number_integer(&self) -> bool {
+        match self {
+            NumberInteger(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_number_float(&self) -> bool {
+        match self {
+            NumberFloat(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_unknown_token(&self) -> bool {
+        match self {
+            UnknownToken(_) => true,
+            _ => false,
+        }
+    }
+}
+
+// type LexIterType<'s> = std::iter::Peekable<std::str::CharIndices<'s>>;
+type LexIterType<'s> = std::str::CharIndices<'s>;
 /// Our JSON-lexer to go through string based source.
 ///
 /// Possible structural lexer-tokens:
@@ -76,11 +108,15 @@ pub enum JLexerToken {
 ///   strings. We only do providing raw lexer tokens, it is the Parser's job to decide whether they 
 ///   are correct.
 /// - We have different whitespaces, so we provide only one whitespace token for multiple in a row.
+/// - No token can be of zero length -> that is not a token!
 /// 
 /// From this informations we derive the possible tokens, see JLexerToken.
 pub struct JLexer<'s> {
+    /// Reference to source text.
+    source: &'s str,
     /// Internal iterator for string-based source.
-    iter: std::str::CharIndices<'s>,
+    // iter: std::str::CharIndices<'s>,
+    iter: LexIterType<'s>,
     /// Last tokens we identified. Last one: last_tk[1], before last one: last_tk[0].
     last_tk: [JLexerToken; 2],
 }
@@ -89,18 +125,32 @@ impl<'s> JLexer<'s> {
     /// New type pattern: Generates a new lexer with given source string slice.
     pub fn new(source: &str) -> JLexer {
         JLexer{
+            source,
             iter: source.char_indices(),
             last_tk: [NullToken, NullToken],
         }
     }
+
+    fn now_string_content(&self) -> bool {
+        !self.last_tk[0].is_string_content() && self.last_tk[1] == StringToken
+    }
+
+    // fn finished_string_lexing(&self) -> bool {
+    //     self.last[0].is_string_content() && self.last_tk[1] == StringToken
+    // }
 }
 
 impl<'s> Iterator for JLexer<'s> {
     type Item = (JLexerToken, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
-        // Check if last token was a StringContent.
-        if let Some((i,c)) = self.iter.next() {
+        // This whole if-else-block shall return Option<(JLexerToken,usize)>
+        if self.now_string_content() {
+            seek_until(&mut self.iter, |c| c != '\"')
+                .and_then(|(start,stop)| {
+                    Some((StringContent(String::from(&self.source[start..stop])), start))
+                })
+        } else if let Some((p,c)) = self.iter.next() {
             let token = match c {
                 whitespace_pat!() => {
                     // Check following characters, and skip the whole whitespace series.
@@ -137,10 +187,16 @@ impl<'s> Iterator for JLexer<'s> {
                 },
                 _ => UnknownToken(c.into()),
             };
-            Some((token, i+1))
+            Some((token,p))
         } else {
             None
         }
+        .and_then(|(tk,p)| {
+            self.last_tk[0] = self.last_tk[1].clone();
+            self.last_tk[1] = tk.clone();
+            println!("found LexerToken: {:?} at pos {}", tk, p);
+            Some((tk, p+1))
+        })
     }
 }
 
@@ -159,25 +215,51 @@ fn is_number(c: char) -> bool {
 }
 
 /// Returns the next lexical item without modifying the original iterator.
-fn crib_next(iter: &std::str::CharIndices<'_>) -> Option<(usize,char)> {
-    let mut iter = iter.clone();
-    iter.next()
+fn crib_next(iter: &LexIterType<'_>) -> Option<(usize,char)> {
+    iter.clone().next()
 }
 
-fn check_if_next_is(iter: &std::str::CharIndices<'_>, c: char) -> Option<bool> {
-    if let Some((_i, ci)) = crib_next(iter) {
-        Some(c == ci)
-    } else {
-        None
-    }
+/// Checks if next char is equal to 'c' without modifying original iterator.
+fn check_if_next_is(iter: &LexIterType<'_>, c: char) -> Option<bool> {
+    crib_next(iter).map(|(_i,ci)| ci == c)
 }
 
-fn check_if_next_fits(iter: &std::str::CharIndices<'_>, pat: fn(char) -> bool) -> Option<bool> {
-    if let Some((_i, c)) = crib_next(iter) {
-        Some(pat(c))
-    } else {
-        None 
+/// Checks if next char matches pattern provided by function without modifying original iterator.
+fn check_if_next_fits(iter: &LexIterType<'_>, pat: fn(char) -> bool) -> Option<bool> {
+    crib_next(iter).map(|(_i,c)| pat(c))
+}
+
+/// Methods seeks iterator forward until f_next cancels process and returns String.
+/// f_next() shall return true if next does also belong to that string to be seeked, and false if
+/// seeking shall stop with current character.
+fn seek_until(iter: &mut LexIterType<'_>, f_next: fn(char) -> bool) -> Option<(usize, usize)> {
+    // println!("start seeking...");
+    let mut iter_peek = iter.clone();
+    let mut start = 0;
+
+    if let Some((p,c)) = iter_peek.next()  {
+        if f_next(c) {
+            // println!("first character is {} at pos {}", c, p);
+            start = p;
+            iter.next();
+        }
     }
+    if start == 0 { return None }
+
+    let mut stop = start;
+    while let Some((p, c)) = iter_peek.next() {
+        if f_next(c) {
+            stop = p;
+            iter.next();
+            // println!("current is {} and we continue", c);
+        } else {
+            // println!("current is {} and we stop seeking", c);
+            break
+        }
+    }
+    
+    // println!("we took string slice [{}..{}]", start, stop+1);
+    Some((start, stop+1))
 }
 
 
@@ -209,27 +291,27 @@ mod tests {
 
     #[test]
     fn tokens_with_strings() {
-        let mut lexer = JLexer::new(r#"{\n"name": "value", "other-name":"value2"}"#);
+        let mut lexer = JLexer::new("{\n\"name\": \"value\", \"other-name\":\"value2\"}");
         assert_cmp!(lexer, ObjectBegin, 1);
         assert_cmp!(lexer, Whitespace, 2);
         assert_cmp!(lexer, StringToken, 3);
         assert_cmp!(lexer, StringContent(String::from("name")), 4);
-        assert_cmp!(lexer, StringToken, 9);
-        assert_cmp!(lexer, NameSeparator, 10);
-        assert_cmp!(lexer, Whitespace, 11);
-        assert_cmp!(lexer, StringToken, 12);
-        assert_cmp!(lexer, StringContent(String::from("value")), 13);
-        assert_cmp!(lexer, StringToken, 19);
-        assert_cmp!(lexer, ValueSeparator, 20);
-        assert_cmp!(lexer, Whitespace, 21);
-        assert_cmp!(lexer, StringToken, 22);
-        assert_cmp!(lexer, StringContent(String::from("other-name")), 23);
-        assert_cmp!(lexer, StringToken, 34);
-        assert_cmp!(lexer, NameSeparator, 35);
-        assert_cmp!(lexer, StringToken, 36);
-        assert_cmp!(lexer, StringContent(String::from("value2")), 37);
-        assert_cmp!(lexer, StringToken, 44);
-        assert_cmp!(lexer, ObjectEnd, 1);
+        assert_cmp!(lexer, StringToken, 8);
+        assert_cmp!(lexer, NameSeparator, 9);
+        assert_cmp!(lexer, Whitespace, 10);
+        assert_cmp!(lexer, StringToken, 11);
+        assert_cmp!(lexer, StringContent(String::from("value")), 12);
+        assert_cmp!(lexer, StringToken, 17);
+        assert_cmp!(lexer, ValueSeparator, 18);
+        assert_cmp!(lexer, Whitespace, 19);
+        assert_cmp!(lexer, StringToken, 20);
+        assert_cmp!(lexer, StringContent(String::from("other-name")), 21);
+        assert_cmp!(lexer, StringToken, 31);
+        assert_cmp!(lexer, NameSeparator, 32);
+        assert_cmp!(lexer, StringToken, 33);
+        assert_cmp!(lexer, StringContent(String::from("value2")), 34);
+        assert_cmp!(lexer, StringToken, 40);
+        assert_cmp!(lexer, ObjectEnd, 41);
     }
 
     #[test]
