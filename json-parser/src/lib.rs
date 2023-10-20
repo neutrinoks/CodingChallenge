@@ -4,7 +4,6 @@
 pub mod jlexer;
 pub mod jparser;
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

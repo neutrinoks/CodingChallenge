@@ -1,5 +1,5 @@
 //! Module contains the JSON-parser and the internal used JSON-Lexer. For more background
-//! informations on the following definitions have a look at the (RFC-8259)[ 
+//! informations on the following definitions have a look at the (RFC-8259)[
 //! https://www.rfc-editor.org/rfc/rfc8259].
 //!
 //! ### Some notes from the RFC-8259
@@ -17,7 +17,7 @@ use JLexerToken::*;
 macro_rules! whitespace_pat {
     () => {
         ' ' | '\n' | '\r' | '\t'
-    }
+    };
 }
 
 /// All possible tokens provided by the JLexer.
@@ -57,10 +57,7 @@ pub enum JLexerToken {
 
 impl JLexerToken {
     pub fn is_string_content(&self) -> bool {
-        match self {
-            StringContent(_) => true,
-            _ => false,
-        }
+        matches!(self, StringContent(_))
     }
 
     // pub fn is_number_integer(&self) -> bool {
@@ -100,11 +97,11 @@ type LexIterType<'s> = std::str::CharIndices<'s>;
 /// Additional thoughts:
 /// - Collect string-literals by '"'
 /// - We do net decide whether a string is correct in terms of identifying names or regular
-///   strings. We only do providing raw lexer tokens, it is the Parser's job to decide whether they 
+///   strings. We only do providing raw lexer tokens, it is the Parser's job to decide whether they
 ///   are correct.
 /// - We have different whitespaces, so we provide only one whitespace token for multiple in a row.
 /// - No token can be of zero length -> that is not a token!
-/// 
+///
 /// From this informations we derive the possible tokens, see JLexerToken.
 pub struct JLexer<'s> {
     /// Reference to source text.
@@ -122,7 +119,7 @@ impl<'s> JLexer<'s> {
     /// New type pattern: Generates a new lexer with given source string slice.
     #[cfg(test)] // temporary
     pub fn new(source: &str) -> JLexer {
-        JLexer{
+        JLexer {
             source,
             iter: source.char_indices(),
             last_tk: [NullToken, NullToken],
@@ -130,58 +127,56 @@ impl<'s> JLexer<'s> {
     }
 
     fn expects_string_content(&self) -> bool {
-        self.last_tk[1] == StringToken && 
-            !(self.last_tk[0].is_string_content() || self.last_tk[0] == StringToken)
+        self.last_tk[1] == StringToken
+            && !(self.last_tk[0].is_string_content() || self.last_tk[0] == StringToken)
     }
 
     fn try_lex_string(&mut self) -> MidLexerOutput {
-        seek_until(&mut self.iter, |c| c != '\"')
-            .map(|(start,stop)| {
-                (StringContent(String::from(&self.source[start..stop])), start)
-            })
+        seek_until(&mut self.iter, |c| c != '\"').map(|(start, stop)| {
+            (
+                StringContent(String::from(&self.source[start..stop])),
+                start,
+            )
+        })
     }
 
     fn try_lex_number(&mut self) -> MidLexerOutput {
-        seek_until(&mut self.iter, is_number)
-            .map(|(start,stop)| {
-                let slice = &self.source[start..stop];
-                println!("seek_until result: {}", slice);
-                if slice.contains('.') {
-                    if let Ok(number) = slice.parse::<f64>() {
-                        (NumberFloat(number), start)
-                    } else {
-                        (UnknownToken(String::from(slice)), start)
-                    }
-                } else {
-                    if let Ok(number) = slice.parse::<isize>() {
-                        (NumberInteger(number), start)
-                    } else {
-                        (UnknownToken(String::from(slice)), start)
-                    }
-                }
-            })
-    }
-
-    fn try_string_token(&mut self, pat: &str, tk: JLexerToken) -> MidLexerOutput {
-        seek_until(&mut self.iter, char::is_alphabetic)
-            .map(|(start,stop)| {
-                let slice = &self.source[start..stop];
-                if slice == pat {
-                    (tk, start)
+        seek_until(&mut self.iter, is_number).map(|(start, stop)| {
+            let slice = &self.source[start..stop];
+            println!("seek_until result: {}", slice);
+            if slice.contains('.') {
+                if let Ok(number) = slice.parse::<f64>() {
+                    (NumberFloat(number), start)
                 } else {
                     (UnknownToken(String::from(slice)), start)
                 }
-            })
+            } else if let Ok(number) = slice.parse::<isize>() {
+                (NumberInteger(number), start)
+            } else {
+                (UnknownToken(String::from(slice)), start)
+            }
+        })
+    }
+
+    fn try_string_token(&mut self, pat: &str, tk: JLexerToken) -> MidLexerOutput {
+        seek_until(&mut self.iter, char::is_alphabetic).map(|(start, stop)| {
+            let slice = &self.source[start..stop];
+            if slice == pat {
+                (tk, start)
+            } else {
+                (UnknownToken(String::from(slice)), start)
+            }
+        })
     }
 
     fn lex_non_string(&mut self) -> MidLexerOutput {
-        self.iter.next().map(|(p,c)| {
+        self.iter.next().map(|(p, c)| {
             let token = match c {
                 whitespace_pat!() => {
                     // Check following characters, and skip the whole whitespace series.
                     seek_until(&mut self.iter, is_whitespace);
                     Whitespace
-                },
+                }
                 '{' => ObjectBegin,
                 '}' => ObjectEnd,
                 '[' => ArrayBegin,
@@ -192,18 +187,18 @@ impl<'s> JLexer<'s> {
                 't' => {
                     // Check if true-token, otherwise UnknownToken
                     TrueToken
-                },
+                }
                 'f' => {
                     // Check if false-token, otherwise UnknownToken
                     FalseToken
-                },
+                }
                 'n' => {
                     // Check if null-token, otherwise UnknownToken
                     NullToken
-                },
+                }
                 _ => UnknownToken(c.into()),
             };
-            (token,p)
+            (token, p)
         })
     }
 }
@@ -234,43 +229,38 @@ impl<'s> Iterator for JLexer<'s> {
         } else {
             result
         }
-        .and_then(|(tk,p)| {
+        .map(|(tk, p)| {
             self.last_tk[0] = self.last_tk[1].clone();
             self.last_tk[1] = tk.clone();
-            println!("found LexerToken: {:?} at pos {}", tk, p);
-            Some((tk, p+1))
+            (tk, p + 1)
         })
     }
 }
 
 fn is_whitespace(c: char) -> bool {
-    match c {
-        whitespace_pat!() => true,
-        _ => false
-    }
+    matches!(c, whitespace_pat!())
 }
 
 fn is_number(c: char) -> bool {
-    match c {
-        '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => true,
-        '.' => true,
-        _ => false,
-    }
+    matches!(
+        c,
+        '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '.'
+    )
 }
 
 /// Returns the next lexical item without modifying the original iterator.
-fn crib_next(iter: &LexIterType<'_>) -> Option<(usize,char)> {
+fn crib_next(iter: &LexIterType<'_>) -> Option<(usize, char)> {
     iter.clone().next()
 }
 
 // /// Checks if next char is equal to 'c' without modifying original iterator.
 fn check_if_next_is(iter: &LexIterType<'_>, c: char) -> bool {
-    crib_next(iter).is_some_and(|(_,ci)| ci == c)
+    crib_next(iter).is_some_and(|(_, ci)| ci == c)
 }
 
 /// Checks if next char matches pattern provided by function without modifying original iterator.
 fn check_if_next_fits(iter: &LexIterType<'_>, pat: fn(char) -> bool) -> bool {
-    crib_next(iter).is_some_and(|(_,c)| pat(c))
+    crib_next(iter).is_some_and(|(_, c)| pat(c))
 }
 
 /// Methods seeks iterator forward until f_next cancels process and returns String.
@@ -280,7 +270,7 @@ fn seek_until(iter: &mut LexIterType<'_>, f_next: fn(char) -> bool) -> Option<(u
     let mut iter_peek = iter.clone();
     let mut start = 0;
 
-    if let Some((p,c)) = iter_peek.next()  {
+    if let Some((p, c)) = iter_peek.next() {
         if f_next(c) {
             start = p;
             iter.next();
@@ -288,21 +278,22 @@ fn seek_until(iter: &mut LexIterType<'_>, f_next: fn(char) -> bool) -> Option<(u
     }
     // Be aware: this implies, that the very first character is never a sequence, because every
     // JSON-file starts with a single token ('{').
-    if start == 0 { return None }
+    if start == 0 {
+        return None;
+    }
 
     let mut stop = start;
-    while let Some((p, c)) = iter_peek.next() {
+    for (p, c) in iter_peek {
         if f_next(c) {
             stop = p;
             iter.next();
         } else {
-            break
+            break;
         }
     }
-    
-    Some((start, stop+1))
-}
 
+    Some((start, stop + 1))
+}
 
 #[cfg(test)]
 mod tests {
@@ -311,7 +302,7 @@ mod tests {
     macro_rules! assert_cmp {
         ($iter:expr, $value:expr, $pos:expr) => {
             assert_eq!($iter.next(), Some(($value, $pos)));
-        }
+        };
     }
 
     #[test]
