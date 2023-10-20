@@ -1,7 +1,9 @@
 //! A simple JSON-parser as a coding challenge by John Cricket.
 
 // mod jdatatypes;
-mod jparser;
+pub mod jlexer;
+pub mod jparser;
+
 
 #[cfg(test)]
 mod tests {
