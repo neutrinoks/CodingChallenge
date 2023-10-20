@@ -121,6 +121,8 @@ pub struct JLexer<'s> {
     last_tk: [JLexerToken; 2],
 }
 
+type MidLexerOutput = Option<(JLexerToken, usize)>;
+
 impl<'s> JLexer<'s> {
     /// New type pattern: Generates a new lexer with given source string slice.
     pub fn new(source: &str) -> JLexer {
@@ -131,26 +133,20 @@ impl<'s> JLexer<'s> {
         }
     }
 
-    fn now_string_content(&self) -> bool {
-        !self.last_tk[0].is_string_content() && self.last_tk[1] == StringToken
+    fn expects_string_content(&self) -> bool {
+        self.last_tk[1] == StringToken && 
+            !(self.last_tk[0].is_string_content() || self.last_tk[0] == StringToken)
     }
 
-    // fn finished_string_lexing(&self) -> bool {
-    //     self.last[0].is_string_content() && self.last_tk[1] == StringToken
-    // }
-}
+    fn try_lex_string(&mut self) -> MidLexerOutput {
+        seek_until(&mut self.iter, |c| c != '\"')
+            .and_then(|(start,stop)| {
+                Some((StringContent(String::from(&self.source[start..stop])), start))
+            })
+    }
 
-impl<'s> Iterator for JLexer<'s> {
-    type Item = (JLexerToken, usize);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // This whole if-else-block shall return Option<(JLexerToken,usize)>
-        if self.now_string_content() {
-            seek_until(&mut self.iter, |c| c != '\"')
-                .and_then(|(start,stop)| {
-                    Some((StringContent(String::from(&self.source[start..stop])), start))
-                })
-        } else if let Some((p,c)) = self.iter.next() {
+    fn lex_non_string(&mut self) -> MidLexerOutput {
+        if let Some((p,c)) = self.iter.next() {
             let token = match c {
                 whitespace_pat!() => {
                     // Check following characters, and skip the whole whitespace series.
@@ -190,6 +186,28 @@ impl<'s> Iterator for JLexer<'s> {
             Some((token,p))
         } else {
             None
+        }
+    }
+
+    // fn finished_string_lexing(&self) -> bool {
+    //     self.last[0].is_string_content() && self.last_tk[1] == StringToken
+    // }
+}
+
+impl<'s> Iterator for JLexer<'s> {
+    type Item = (JLexerToken, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // This whole if-else-block shall return Option<(JLexerToken,usize)>
+        if self.expects_string_content() {
+            let result = self.try_lex_string();
+            if result.is_none() {
+                self.lex_non_string()
+            } else {
+                result
+            }
+        } else {
+            self.lex_non_string()
         }
         .and_then(|(tk,p)| {
             self.last_tk[0] = self.last_tk[1].clone();
@@ -312,10 +330,18 @@ mod tests {
         assert_cmp!(lexer, StringContent(String::from("value2")), 34);
         assert_cmp!(lexer, StringToken, 40);
         assert_cmp!(lexer, ObjectEnd, 41);
+
+        let mut lexer = JLexer::new("\"\" \"test");
+        assert_cmp!(lexer, StringToken, 1);
+        assert_cmp!(lexer, StringToken, 2);
+        assert_cmp!(lexer, Whitespace, 3);
+        assert_cmp!(lexer, StringToken, 4);
+        assert_cmp!(lexer, StringContent(String::from("test")), 5);
     }
 
     #[test]
     fn tokens_with_numbers() {
         todo!();
+        let mut lexer = JLexer::new("\"age\": 15, \"weight\": 55.7");
     }
 }
