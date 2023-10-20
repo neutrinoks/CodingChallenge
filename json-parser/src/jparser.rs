@@ -136,28 +136,40 @@ impl<'s> JLexer<'s> {
 
     fn try_lex_string(&mut self) -> MidLexerOutput {
         seek_until(&mut self.iter, |c| c != '\"')
-            .and_then(|(start,stop)| {
-                Some((StringContent(String::from(&self.source[start..stop])), start))
+            .map(|(start,stop)| {
+                (StringContent(String::from(&self.source[start..stop])), start)
             })
     }
 
     fn try_lex_number(&mut self) -> MidLexerOutput {
         seek_until(&mut self.iter, is_number)
-            .and_then(|(start,stop)| {
+            .map(|(start,stop)| {
                 let slice = &self.source[start..stop];
                 println!("seek_until result: {}", slice);
                 if slice.contains('.') {
                     if let Ok(number) = slice.parse::<f64>() {
-                        Some((NumberFloat(number), start))
+                        (NumberFloat(number), start)
                     } else {
-                        Some((UnknownToken(String::from(slice)), start))
+                        (UnknownToken(String::from(slice)), start)
                     }
                 } else {
                     if let Ok(number) = slice.parse::<isize>() {
-                        Some((NumberInteger(number), start))
+                        (NumberInteger(number), start)
                     } else {
-                        Some((UnknownToken(String::from(slice)), start))
+                        (UnknownToken(String::from(slice)), start)
                     }
+                }
+            })
+    }
+
+    fn try_string_token(&mut self, pat: &str, tk: JLexerToken) -> MidLexerOutput {
+        seek_until(&mut self.iter, char::is_alphabetic)
+            .map(|(start,stop)| {
+                let slice = &self.source[start..stop];
+                if slice == pat {
+                    (tk, start)
+                } else {
+                    (UnknownToken(String::from(slice)), start)
                 }
             })
     }
@@ -206,6 +218,12 @@ impl<'s> Iterator for JLexer<'s> {
         } else if check_if_next_fits(&self.iter, is_number) {
             println!("next is probably number...");
             self.try_lex_number()
+        } else if check_if_next_is(&self.iter, 't') {
+            self.try_string_token("true", TrueToken)
+        } else if check_if_next_is(&self.iter, 'f') {
+            self.try_string_token("false", FalseToken)
+        } else if check_if_next_is(&self.iter, 'n') {
+            self.try_string_token("null", NullToken)
         } else {
             None
         };
@@ -246,9 +264,9 @@ fn crib_next(iter: &LexIterType<'_>) -> Option<(usize,char)> {
 }
 
 // /// Checks if next char is equal to 'c' without modifying original iterator.
-// fn check_if_next_is(iter: &LexIterType<'_>, c: char) -> bool {
-//     crib_next(iter).is_some_and(|(_,ci)| ci == c)
-// }
+fn check_if_next_is(iter: &LexIterType<'_>, c: char) -> bool {
+    crib_next(iter).is_some_and(|(_,ci)| ci == c)
+}
 
 /// Checks if next char matches pattern provided by function without modifying original iterator.
 fn check_if_next_fits(iter: &LexIterType<'_>, pat: fn(char) -> bool) -> bool {
@@ -375,5 +393,22 @@ mod tests {
         assert_cmp!(lexer, Whitespace, 7);
         assert_cmp!(lexer, NumberFloat(15.0), 8);
         assert_cmp!(lexer, ObjectEnd, 11);
+    }
+
+    #[test]
+    fn tokens_with_string_tokens() {
+        let mut lexer = JLexer::new("{\"is_lexer\": true,false-null}");
+        assert_cmp!(lexer, ObjectBegin, 1);
+        assert_cmp!(lexer, StringToken, 2);
+        assert_cmp!(lexer, StringContent(String::from("is_lexer")), 3);
+        assert_cmp!(lexer, StringToken, 11);
+        assert_cmp!(lexer, NameSeparator, 12);
+        assert_cmp!(lexer, Whitespace, 13);
+        assert_cmp!(lexer, TrueToken, 14);
+        assert_cmp!(lexer, ValueSeparator, 18);
+        assert_cmp!(lexer, FalseToken, 19);
+        assert_cmp!(lexer, UnknownToken(String::from("-")), 24);
+        assert_cmp!(lexer, NullToken, 25);
+        assert_cmp!(lexer, ObjectEnd, 29);
     }
 }
