@@ -1,15 +1,19 @@
-//! Module contains the JSON-parser and the internal used JSON-Lexer. For more background
-//! informations on the following definitions have a look at the (RFC-8259)[
-//! https://www.rfc-editor.org/rfc/rfc8259].
+//! Module contains the JSON-parser and the internal used JSON-Lexer.
 //!
-//! ### Some notes from the RFC-8259
+//! For more background informations on the following definitions have a look at the 
+//! (RFC-8259)[https://www.rfc-editor.org/rfc/rfc8259].
+//!
+//! ### Some notes from the RFC-8259 (Chapter 2, JSON Grammar)
 //!
 //! *Whitespaces* are: Space, horizontal tab, line feed or new line, CR
 //!
-//! *Values* are: Object, array, number, string, or true/false/null.
-//!
-//! *Objects* are: begin-object [ member (value-separator member)* ] end-object, where
-//! member is: string name-separator value
+/// Possible structural lexer-tokens:
+/// - '[' as begin-array token
+/// - '{' as begin-object token
+/// - ']' as end-array token
+/// - '}' as end-object token
+/// - ':' as name-separator
+/// - ',' as value-separator
 
 use JLexerToken::*;
 
@@ -17,6 +21,15 @@ use JLexerToken::*;
 macro_rules! whitespace_pat {
     () => {
         ' ' | '\n' | '\r' | '\t'
+    };
+}
+
+/// Crate internal macro for simplifying unittests.
+#[cfg(test)]
+#[macro_export]
+macro_rules! assert_cmp {
+    ($iter:expr, $value:expr, $pos:expr) => {
+        assert_eq!($iter.next(), Some(($value, $pos)));
     };
 }
 
@@ -59,40 +72,12 @@ impl JLexerToken {
     pub fn is_string_content(&self) -> bool {
         matches!(self, StringContent(_))
     }
-
-    // pub fn is_number_integer(&self) -> bool {
-    //     match self {
-    //         NumberInteger(_) => true,
-    //         _ => false,
-    //     }
-    // }
-
-    // pub fn is_number_float(&self) -> bool {
-    //     match self {
-    //         NumberFloat(_) => true,
-    //         _ => false,
-    //     }
-    // }
-
-    // pub fn is_unknown_token(&self) -> bool {
-    //     match self {
-    //         UnknownToken(_) => true,
-    //         _ => false,
-    //     }
-    // }
 }
 
 // type LexIterType<'s> = std::iter::Peekable<std::str::CharIndices<'s>>;
 type LexIterType<'s> = std::str::CharIndices<'s>;
 /// Our JSON-lexer to go through string based source.
 ///
-/// Possible structural lexer-tokens:
-/// - '[' as begin-array token
-/// - '{' as begin-object token
-/// - ']' as end-array token
-/// - '}' as end-object token
-/// - ':' as name-separator
-/// - ',' as value-separator
 ///
 /// Additional thoughts:
 /// - Collect string-literals by '"'
@@ -117,7 +102,6 @@ type MidLexerOutput = Option<(JLexerToken, usize)>;
 
 impl<'s> JLexer<'s> {
     /// New type pattern: Generates a new lexer with given source string slice.
-    #[cfg(test)] // temporary
     pub fn new(source: &str) -> JLexer {
         JLexer {
             source,
@@ -297,13 +281,7 @@ fn seek_until(iter: &mut LexIterType<'_>, f_next: fn(char) -> bool) -> Option<(u
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    macro_rules! assert_cmp {
-        ($iter:expr, $value:expr, $pos:expr) => {
-            assert_eq!($iter.next(), Some(($value, $pos)));
-        };
-    }
+    use super::{JLexer, JLexerToken::*};
 
     #[test]
     fn varying_single_tokens() {
