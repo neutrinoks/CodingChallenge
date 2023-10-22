@@ -79,6 +79,7 @@ type LexIterType<'s> = std::str::CharIndices<'s>;
 /// - No token can be of zero length -> that is not a token!
 ///
 /// From this informations we derive the possible tokens, see JLexerToken.
+#[derive(Clone)]
 pub struct JLexer<'s> {
     /// Reference to source text.
     source: &'s str,

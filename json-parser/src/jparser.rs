@@ -20,6 +20,22 @@
 use crate::jlexer::{JLexer, JLexerToken as JLToken};
 
 
+macro_rules! unexpected_token {
+    ($exp:expr, $pos:expr) => {
+        {
+            let errmsg = format!("expected {:?} at position {}", $exp, $pos);
+            Err(JParserError::UnexpectedToken(errmsg))
+        }
+    };
+    ($exp:expr, $pos:expr, $inst:expr) => {
+        {
+            let msg = format!("expected {:?} at position {} - but found {:?}", $exp, $pos, $inst);
+            Err(JParserError::UnexpectedToken(msg))
+        }
+    };
+}
+
+
 #[derive(Debug, PartialEq)]
 enum JPartialValue {
     Float(f64),
@@ -75,8 +91,6 @@ enum StackIdent {
 enum JPartialExpect {
     ObjectBegin,
     ObjectEnd,
-    NameSeparator,
-    ValueSeparator,
     MemberName,
     MemberValue,
     Unknown,
@@ -110,7 +124,8 @@ impl<'s> JPartialParser<'s> {
     /// New type pattern, to create a new JParser for a given source.
     pub fn new(source: &'s str) -> JPartialParser<'s> {
         JPartialParser{
-            lexer: JLexer::new(source).filter(|(ltk,_)| !matches!(ltk, JLToken::Whitespace)),
+            lexer: JLexer::new(source).filter(|(ltk,_)| 
+                !matches!(ltk, JLToken::Whitespace | JLToken::StringToken)),
             stack: Vec::new(),
             last_tk: [JPartialExpect::Unknown, JPartialExpect::Unknown],
             expect: vec![JPartialExpect::ObjectBegin],
@@ -124,8 +139,6 @@ impl<'s> JPartialParser<'s> {
             let is_ok = match tk {
                 JPartialExpect::ObjectBegin => matches!(ltk, JLToken::ObjectBegin),
                 JPartialExpect::ObjectEnd => matches!(ltk, JLToken::ObjectEnd),
-                JPartialExpect::NameSeparator => matches!(ltk, JLToken::NameSeparator),
-                JPartialExpect::ValueSeparator => matches!(ltk, JLToken::ValueSeparator),
                 JPartialExpect::MemberName => matches!(ltk, JLToken::StringContent(_)),
                 JPartialExpect::MemberValue => matches!(ltk, 
                     JLToken::ArrayBegin | JLToken::ObjectBegin | JLToken::StringContent(_) | 
@@ -144,8 +157,39 @@ impl<'s> JPartialParser<'s> {
         for exp in e_iter {
             errmsg.push_str(&format!(" or {:?}", exp));
         }
-        errmsg.push_str(&format!("\nfound: {:?}", ltk));
+        errmsg.push_str(&format!(" - found: {:?}", ltk));
         Err(JParserError::UnexpectedToken(errmsg))
+    }
+
+    fn expects(&self, exp: JPartialExpect) -> bool {
+        for e in &self.expect {
+            if *e == exp {
+                return true
+            }
+        }
+        false
+    }
+
+    fn next_shall_be(&mut self, exp: JLToken, p: usize) -> JPResult<()> {
+        let next = self.lexer.next();
+        if next.is_none() {
+            return unexpected_token!(exp, p)
+        }
+
+        let next = next.unwrap();
+        if matches!(&next, exp) {
+            Ok(())
+        } else {
+            unexpected_token!(exp, p, next)
+        }
+    }
+
+    fn crib_next_is(&self, jlt: JLToken) -> bool {
+        if let Some((tk,_)) = self.lexer.clone().next() {
+            matches!(tk, jlt)
+        } else {
+            false
+        }
     }
 }
 
@@ -159,38 +203,53 @@ impl<'s> Iterator for JPartialParser<'s> {
 
             match ltk {
                 JLToken::ObjectBegin => {
-                    // Setup expectations
+                    self.expect = vec![JPartialExpect::MemberName, JPartialExpect::ObjectEnd];
                     Ok((JPartialToken::ObjectBegin, p))
                 },
                 JLToken::ArrayBegin => {
-                    // Setup expectations
                     // Parse array
-                    Ok((JPartialToken::Array(Vec::new()), p))
+                    // Setup expectations
+                    // Ok((JPartialToken::Array(Vec::new()), p))
+                    todo!()
                 },
                 JLToken::TrueToken => {
-                    // Setup expectations
+                    // self.expect = vec![JPartialExpect::ValueSeparator];
                     Ok((JPartialToken::MemberValue(JPartialValue::True), p))
                 },
                 JLToken::FalseToken => {
-                    // Setup expectations
+                    // self.expect = vec![JPartialExpect::ValueSeparator];
                     Ok((JPartialToken::MemberValue(JPartialValue::False), p))
                 },
                 JLToken::NullToken => {
-                    // Setup expectations
+                    // self.expect = vec![JPartialExpect::ValueSeparator];
                     Ok((JPartialToken::MemberValue(JPartialValue::Null), p))
                 },
                 JLToken::StringContent(s) => {
-                    // Check tokens before, either MemberName or MemberValue...
-                    // Setup expectations
-                    // Ok((JPartialToken::token, p))
-                    todo!()
+                    if self.expects(JPartialExpect::MemberName) {
+                        self.expect = vec![
+                            JPartialExpect::MemberValue, JPartialExpect::ObjectBegin
+                        ];
+                        self.next_shall_be(JLToken::NameSeparator, p)?;
+                        Ok((JPartialToken::MemberName(s), p))
+                    } else if self.expects(JPartialExpect::MemberValue) {
+                        if self.crib_next_is(JLToken::ValueSeparator) {
+                            self.lexer.next();
+                            self.expect = vec![JPartialExpect::MemberName];
+                        } else {
+                            self.expect = vec![JPartialExpect::ObjectEnd];
+                        }
+                        Ok((JPartialToken::MemberValue(JPartialValue::String(s)), p))
+                    } else {
+                        let errmsg = format!("Unexpected");
+                        Err(JParserError::UnexpectedToken(errmsg))
+                    }
                 },
                 JLToken::NumberInteger(i) => {
-                    // Setup expectations
+                    // self.expect = vec![JPartialExpect::ValueSeparator];
                     Ok((JPartialToken::MemberValue(JPartialValue::Integer(i)), p))
                 },
                 JLToken::NumberFloat(f) => {
-                    // Setup expectations
+                    // self.expect = vec![JPartialExpect::ValueSeparator];
                     Ok((JPartialToken::MemberValue(JPartialValue::Float(f)), p))
                 },
                 JLToken::UnknownToken(s) => {
@@ -250,7 +309,7 @@ mod tests {
     fn partial_parse_main_object_one_value() {
         let mut parser = JPartialParser::new("{\n\"name\": 50.7\n}");
         assert_cmp!(parser, JPartialToken::ObjectBegin, 1);
-        assert_cmp!(parser, JPartialToken::MemberName("name".into()), 3);
+        assert_cmp!(parser, JPartialToken::MemberName("name".into()), 4);
         assert_cmp!(parser, JPartialToken::MemberValue(JPartialValue::Float(50.7)), 11);
         assert_cmp!(parser, JPartialToken::ObjectEnd, 16);
     }
