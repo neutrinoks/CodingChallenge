@@ -17,7 +17,7 @@
 //!
 //! *Strings* are: quotation-mark char* quotation-mark; where char: escaped | unescaped, TODO!
 
-use crate::jlexer::{JLexer, JLexerToken::*};
+use crate::jlexer::{JLexer, JLexerToken as JLToken};
 
 
 #[derive(Debug, PartialEq)]
@@ -37,7 +37,6 @@ enum JPartialToken {
     Array(Vec<JPartialValue>),
     MemberName(String),
     MemberValue(JPartialValue),
-    Unknown, // lalalalala
 }
 
 /// Possible errors thrown by the JParser.
@@ -47,6 +46,10 @@ pub enum JParserError {
     NoBeginningObject,
     /// If some object is not closed properly, missing '}'.
     UnclosedObject,
+    /// Unexpected token at this position.
+    UnexpectedToken(String),
+    /// Unknown token was returned from the lexer.
+    UnknownToken(String),
 }
 
 impl std::fmt::Display for JParserError {
@@ -60,7 +63,6 @@ impl std::error::Error for JParserError {}
 /// A generic Result for JParser.
 pub type JPResult<T> = Result<T, JParserError>;
 
-
 /// An internal and parser-related identifier for begin-object and begin-array.
 #[derive(Debug, PartialEq)]
 enum StackIdent {
@@ -68,6 +70,23 @@ enum StackIdent {
     BeginArray,
 }
 
+/// This is a reduced variant of JPartialToken, only interpreted as expection of JPartialParser.
+#[derive(Debug, PartialEq)]
+enum JPartialExpect {
+    ObjectBegin,
+    ObjectEnd,
+    NameSeparator,
+    ValueSeparator,
+    MemberName,
+    MemberValue,
+    Unknown,
+}
+
+impl PartialEq<JPartialToken> for JPartialExpect {
+    fn eq(&self, other: &JPartialToken) -> bool {
+        false
+    }
+}
 
 /// The JParser on top of the JLexer checks for a proper syntax/structure of the JSON-file.
 ///
@@ -76,11 +95,13 @@ enum StackIdent {
 /// would be the first output.
 struct JPartialParser<'s> {
     /// Internal lexer to go through source token by token.
-    lexer: JLexer<'s>,
+    lexer: std::iter::Filter<JLexer<'s>, fn(&(JLToken,usize)) -> bool>,
     /// Stack for begin-object, begin-array.
     stack: Vec<StackIdent>,
     /// Buffer of last two parsed tokens.
-    last_tk: [JPartialToken; 2],
+    last_tk: [JPartialExpect; 2],
+    /// Expectation for next token, dependent on JSON grammar.
+    expect: Vec<JPartialExpect>,
     /// Counter of parsed elements.
     count: usize,
 }
@@ -89,13 +110,43 @@ impl<'s> JPartialParser<'s> {
     /// New type pattern, to create a new JParser for a given source.
     pub fn new(source: &'s str) -> JPartialParser<'s> {
         JPartialParser{
-            lexer: JLexer::new(source),
+            lexer: JLexer::new(source).filter(|(ltk,_)| !matches!(ltk, JLToken::Whitespace)),
             stack: Vec::new(),
-            last_tk: [JPartialToken::Unknown, JPartialToken::Unknown],
+            last_tk: [JPartialExpect::Unknown, JPartialExpect::Unknown],
+            expect: vec![JPartialExpect::ObjectBegin],
             count: 0,
         }
     }
 
+    fn was_expected(&self, ltk: &JLToken, p: usize) -> JPResult<()> {
+        // Try to find an expected one.
+        for tk in &self.expect {
+            let is_ok = match tk {
+                JPartialExpect::ObjectBegin => matches!(ltk, JLToken::ObjectBegin),
+                JPartialExpect::ObjectEnd => matches!(ltk, JLToken::ObjectEnd),
+                JPartialExpect::NameSeparator => matches!(ltk, JLToken::NameSeparator),
+                JPartialExpect::ValueSeparator => matches!(ltk, JLToken::ValueSeparator),
+                JPartialExpect::MemberName => matches!(ltk, JLToken::StringContent(_)),
+                JPartialExpect::MemberValue => matches!(ltk, 
+                    JLToken::ArrayBegin | JLToken::ObjectBegin | JLToken::StringContent(_) | 
+                    JLToken::NumberFloat(_) | JLToken::NumberInteger(_) | JLToken::NullToken |
+                    JLToken::TrueToken | JLToken::FalseToken),
+                JPartialExpect::Unknown => true,
+            };
+            if is_ok {
+                return Ok(())
+            }
+        }
+
+        // Otherwise build error message and return error.
+        let mut e_iter = self.expect.iter();
+        let mut errmsg = format!("at position {} expected: {:?}", p, e_iter.next().unwrap());
+        for exp in e_iter {
+            errmsg.push_str(&format!(" or {:?}", exp));
+        }
+        errmsg.push_str(&format!("\nfound: {:?}", ltk));
+        Err(JParserError::UnexpectedToken(errmsg))
+    }
 }
 
 impl<'s> Iterator for JPartialParser<'s> {
@@ -103,7 +154,56 @@ impl<'s> Iterator for JPartialParser<'s> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.lexer.next().map(|(ltk,p)| {
-            Err(JParserError::NoBeginningObject)
+            // Check for first grammar errors (if was expected).
+            self.was_expected(&ltk, p)?;
+
+            match ltk {
+                JLToken::ObjectBegin => {
+                    // Setup expectations
+                    Ok((JPartialToken::ObjectBegin, p))
+                },
+                JLToken::ArrayBegin => {
+                    // Setup expectations
+                    // Parse array
+                    Ok((JPartialToken::Array(Vec::new()), p))
+                },
+                JLToken::TrueToken => {
+                    // Setup expectations
+                    Ok((JPartialToken::MemberValue(JPartialValue::True), p))
+                },
+                JLToken::FalseToken => {
+                    // Setup expectations
+                    Ok((JPartialToken::MemberValue(JPartialValue::False), p))
+                },
+                JLToken::NullToken => {
+                    // Setup expectations
+                    Ok((JPartialToken::MemberValue(JPartialValue::Null), p))
+                },
+                JLToken::StringContent(s) => {
+                    // Check tokens before, either MemberName or MemberValue...
+                    // Setup expectations
+                    // Ok((JPartialToken::token, p))
+                    todo!()
+                },
+                JLToken::NumberInteger(i) => {
+                    // Setup expectations
+                    Ok((JPartialToken::MemberValue(JPartialValue::Integer(i)), p))
+                },
+                JLToken::NumberFloat(f) => {
+                    // Setup expectations
+                    Ok((JPartialToken::MemberValue(JPartialValue::Float(f)), p))
+                },
+                JLToken::UnknownToken(s) => {
+                    let errmsg = format!("Unknown token \"{}\" at position {}", s, p);
+                    Err(JParserError::UnknownToken(errmsg))
+                },
+                _ => {
+                    // Should not appear due to the concept of algorithm:
+                    // JLToken::Whitespace, JLToken::ObjectEnd, JLToken::ArrayEnd,
+                    // JLToken::NameSeparator, JLToken::ValueSeparator, JLToken::StringToken
+                    panic!("Whitespaces should all be filtered out!")
+                },
+            }
         })
     }
 }
