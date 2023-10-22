@@ -24,15 +24,6 @@ macro_rules! whitespace_pat {
     };
 }
 
-/// Crate internal macro for simplifying unittests.
-#[cfg(test)]
-#[macro_export]
-macro_rules! assert_cmp {
-    ($iter:expr, $value:expr, $pos:expr) => {
-        assert_eq!($iter.next(), Some(($value, $pos)));
-    };
-}
-
 /// All possible tokens provided by the JLexer.
 #[derive(Debug, Clone, PartialEq)]
 pub enum JLexerToken {
@@ -282,6 +273,12 @@ fn seek_until(iter: &mut LexIterType<'_>, f_next: fn(char) -> bool) -> Option<(u
 #[cfg(test)]
 mod tests {
     use super::{JLexer, JLexerToken::*};
+
+    macro_rules! assert_cmp {
+        ($iter:expr, $value:expr, $pos:expr) => {
+            assert_eq!($iter.next(), Some(($value, $pos)));
+        };
+    }
 
     #[test]
     fn varying_single_tokens() {

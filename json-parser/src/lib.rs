@@ -8,7 +8,7 @@ pub mod jparser;
 #[cfg(test)]
 mod tests {
     use totems::{assert_ok, assert_err};
-    use crate::jparser::JParser;
+    use crate::jparser::json_full_analysis;
 
     #[inline]
     fn expect_file(file: &str) -> String {
@@ -18,11 +18,9 @@ mod tests {
     #[test]
     fn cc_step_1() {
         let source = expect_file("tests/step1/valid.json");
-        let parser = JParser::new(&source);
-        assert_ok!(parser.full_analysis());
+        assert_ok!(json_full_analysis(&source));
 
         let source = expect_file("tests/step1/invalid.json");
-        let parser = JParser::new(&source);
-        assert_err!(parser.full_analysis());
+        assert_ok!(json_full_analysis(&source));
     }
 }

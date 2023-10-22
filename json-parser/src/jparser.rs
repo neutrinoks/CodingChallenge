@@ -20,74 +20,31 @@
 use crate::jlexer::{JLexer, JLexerToken::*};
 
 
-/// This trait defines some common functions for the parsing process of each possible JParserToken.
-trait ParsableToken {
-    // Some common creation method to create new ones.
-
-    // Probably some common parsing technique to unify the process of parsing.
-}
-
-
-#[derive(Debug, Clone)]
-pub enum JNumber {
-    Integer(isize),
+#[derive(Debug, PartialEq)]
+enum JPartialValue {
     Float(f64),
-}
-
-/// Value type of the JSON syntax.
-#[derive(Debug, Clone)]
-pub enum JValue {
-    Object,
-    Array,
-    Number(JNumber),
+    Integer(isize),
     String(String),
     True,
     False,
     Null,
 }
 
-impl From<JNumber> for JValue {
-    fn from(num: JNumber) -> JValue {
-        JValue::Number(num)
-    }
+#[derive(Debug, PartialEq)]
+enum JPartialToken {
+    ObjectBegin,
+    ObjectEnd,
+    Array(Vec<JPartialValue>),
+    MemberName(String),
+    MemberValue(JPartialValue),
+    Unknown, // lalalalala
 }
-
-#[derive(Debug, Clone)]
-pub struct JMember {
-    name: String,
-    value: JValue,
-}
-
-impl JMember {
-    pub(crate) fn from_keypair<P>(name: &str, value: P) -> JMember 
-    where P: Into<JValue>
-    {
-        JMember{ name: name.to_string(), value: value.into() }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct JObject {
-    /// members
-    pub member: Vec<JValue>,
-}
-
-/// Possible JParserToken from a syntactical perspective of the output of the JLexer.
-#[derive(Debug, Clone)]
-pub enum JParserToken {
-    Object(JObject),
-    Value(JValue),
-    Array,
-    Number,
-    String,
-}
-
 
 /// Possible errors thrown by the JParser.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum JParserError {
     /// If source contains no main object: '{ }'.
-    NoMainObject,
+    NoBeginningObject,
     /// If some object is not closed properly, missing '}'.
     UnclosedObject,
 }
@@ -105,7 +62,7 @@ pub type JPResult<T> = Result<T, JParserError>;
 
 
 /// An internal and parser-related identifier for begin-object and begin-array.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum StackIdent {
     BeginObject,
     BeginArray,
@@ -117,49 +74,84 @@ enum StackIdent {
 /// Because every JSON file needs at least contain '{}', which is some kind of main-object, this
 /// will not be an output! If it is not contained, an error will be thrown! But the first element
 /// would be the first output.
-pub struct JParser<'s> {
+struct JPartialParser<'s> {
     /// Internal lexer to go through source token by token.
     lexer: JLexer<'s>,
     /// Stack for begin-object, begin-array.
     stack: Vec<StackIdent>,
+    /// Buffer of last two parsed tokens.
+    last_tk: [JPartialToken; 2],
     /// Counter of parsed elements.
     count: usize,
 }
 
-impl<'s> JParser<'s> {
+impl<'s> JPartialParser<'s> {
     /// New type pattern, to create a new JParser for a given source.
-    pub fn new(source: &'s str) -> JParser<'s> {
-        JParser{
+    pub fn new(source: &'s str) -> JPartialParser<'s> {
+        JPartialParser{
             lexer: JLexer::new(source),
             stack: Vec::new(),
+            last_tk: [JPartialToken::Unknown, JPartialToken::Unknown],
             count: 0,
         }
     }
 
-    /// Runs a full lexical analysis of the source.
-    pub fn full_analysis(&self) -> JPResult<()> {
-        Err(JParserError::NoMainObject)
+}
+
+impl<'s> Iterator for JPartialParser<'s> {
+    type Item = JPResult<(JPartialToken, usize)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.lexer.next().map(|(ltk,p)| {
+            Err(JParserError::NoBeginningObject)
+        })
     }
 }
 
-impl<'s> Iterator for JParser<'s> {
-    type Item = (JParserToken, usize);
 
-    fn next(&mut self) -> Option<Self::Item> {
-        None
+pub struct JParser {
+    partial_tokens: Vec<(JPartialToken, usize)>,
+    // pub tokens ...
+}
+
+impl JParser {
+    /// New type pattern, creates a new parser from given source.
+    pub fn new<'s>(source: &'s str) -> JPResult<JParser> {
+        let mut jpart_parser = JPartialParser::new(source);
+        let mut partial_tokens: Vec<(JPartialToken, usize)> = Vec::new();
+        while let Some(tk) = jpart_parser.next() {
+            let tk = tk?;
+            partial_tokens.push(tk);
+        }
+
+        Ok(JParser{ partial_tokens })
     }
+
+}
+
+
+/// Runs a full lexical analysis of the source.
+pub fn json_full_analysis(source: &str) -> JPResult<()> {
+    Err(JParserError::NoBeginningObject)
 }
 
 
 #[cfg(test)]
 mod tests {
-    use crate::assert_cmp;
-    use super::{JMember, JObject, JParser, JValue, JNumber};
+    use super::*;
+
+    macro_rules! assert_cmp {
+        ($iter:expr, $value:expr, $pos:expr) => {
+            assert_eq!($iter.next(), Some(Ok(($value, $pos))));
+        };
+    }
 
     #[test]
-    fn parse_main_object_one_value() {
-        let mut parser = JParser::new("{\n\"name\": 50.7\n}");
-        let value = JMember::from_keypair("name", JNumber::Float(50.7));
-        assert_cmp!(parser, value, 3);
+    fn partial_parse_main_object_one_value() {
+        let mut parser = JPartialParser::new("{\n\"name\": 50.7\n}");
+        assert_cmp!(parser, JPartialToken::ObjectBegin, 1);
+        assert_cmp!(parser, JPartialToken::MemberName("name".into()), 3);
+        assert_cmp!(parser, JPartialToken::MemberValue(JPartialValue::Float(50.7)), 11);
+        assert_cmp!(parser, JPartialToken::ObjectEnd, 16);
     }
 }
