@@ -119,7 +119,6 @@ impl<'s> JLexer<'s> {
     fn try_lex_number(&mut self) -> MidLexerOutput {
         seek_until(&mut self.iter, is_number).map(|(start, stop)| {
             let slice = &self.source[start..stop];
-            println!("seek_until result: {}", slice);
             if slice.contains('.') {
                 if let Ok(number) = slice.parse::<f64>() {
                     (NumberFloat(number), start)
@@ -187,7 +186,6 @@ impl<'s> Iterator for JLexer<'s> {
         let result = if self.expects_string_content() {
             self.try_lex_string()
         } else if check_if_next_fits(&self.iter, is_number) {
-            println!("next is probably number...");
             self.try_lex_number()
         } else if check_if_next_is(&self.iter, 't') {
             self.try_string_token("true", TrueToken)

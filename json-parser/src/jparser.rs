@@ -82,8 +82,8 @@ pub type JPResult<T> = Result<T, JParserError>;
 /// An internal and parser-related identifier for begin-object and begin-array.
 #[derive(Debug, PartialEq)]
 enum StackIdent {
-    BeginObject,
-    BeginArray,
+    Object,
+    Array,
 }
 
 /// This is a reduced variant of JPartialToken, only interpreted as expection of JPartialParser.
@@ -161,7 +161,7 @@ impl<'s> JPartialParser<'s> {
         Err(JParserError::UnexpectedToken(errmsg))
     }
 
-    fn expects(&self, exp: JPartialExpect) -> bool {
+    fn do_we_expect(&self, exp: JPartialExpect) -> bool {
         for e in &self.expect {
             if *e == exp {
                 return true
@@ -184,11 +184,19 @@ impl<'s> JPartialParser<'s> {
         }
     }
 
-    fn crib_next_is(&self, jlt: JLToken) -> bool {
+    fn crib_if_next_is(&self, jlt: JLToken) -> bool {
         if let Some((tk,_)) = self.lexer.clone().next() {
-            matches!(tk, jlt)
+            tk == jlt
         } else {
             false
+        }
+    }
+
+    fn set_expect_after_member_value(&mut self) {
+        if self.crib_if_next_is(JLToken::ValueSeparator) {
+            self.expect = vec![JPartialExpect::MemberName];
+        } else {
+            self.expect = vec![JPartialExpect::ObjectEnd];
         }
     }
 }
@@ -201,10 +209,23 @@ impl<'s> Iterator for JPartialParser<'s> {
             // Check for first grammar errors (if was expected).
             self.was_expected(&ltk, p)?;
 
-            match ltk {
+            let token = match ltk {
                 JLToken::ObjectBegin => {
                     self.expect = vec![JPartialExpect::MemberName, JPartialExpect::ObjectEnd];
+                    self.stack.push(StackIdent::Object);
                     Ok((JPartialToken::ObjectBegin, p))
+                },
+                JLToken::ObjectEnd => {
+                    let err = Err(JParserError::UnclosedObject);
+                    if let Some(si) = self.stack.pop() { 
+                        if si == StackIdent::Object {
+                            Ok((JPartialToken::ObjectEnd, p))
+                        } else {
+                            err
+                        }
+                    } else {
+                        err
+                    }
                 },
                 JLToken::ArrayBegin => {
                     // Parse array
@@ -213,31 +234,26 @@ impl<'s> Iterator for JPartialParser<'s> {
                     todo!()
                 },
                 JLToken::TrueToken => {
-                    // self.expect = vec![JPartialExpect::ValueSeparator];
+                    self.set_expect_after_member_value();
                     Ok((JPartialToken::MemberValue(JPartialValue::True), p))
                 },
                 JLToken::FalseToken => {
-                    // self.expect = vec![JPartialExpect::ValueSeparator];
+                    self.set_expect_after_member_value();
                     Ok((JPartialToken::MemberValue(JPartialValue::False), p))
                 },
                 JLToken::NullToken => {
-                    // self.expect = vec![JPartialExpect::ValueSeparator];
+                    self.set_expect_after_member_value();
                     Ok((JPartialToken::MemberValue(JPartialValue::Null), p))
                 },
                 JLToken::StringContent(s) => {
-                    if self.expects(JPartialExpect::MemberName) {
+                    if self.do_we_expect(JPartialExpect::MemberName) {
+                        self.next_shall_be(JLToken::NameSeparator, p)?;
                         self.expect = vec![
                             JPartialExpect::MemberValue, JPartialExpect::ObjectBegin
                         ];
-                        self.next_shall_be(JLToken::NameSeparator, p)?;
                         Ok((JPartialToken::MemberName(s), p))
-                    } else if self.expects(JPartialExpect::MemberValue) {
-                        if self.crib_next_is(JLToken::ValueSeparator) {
-                            self.lexer.next();
-                            self.expect = vec![JPartialExpect::MemberName];
-                        } else {
-                            self.expect = vec![JPartialExpect::ObjectEnd];
-                        }
+                    } else if self.do_we_expect(JPartialExpect::MemberValue) {
+                        self.set_expect_after_member_value();
                         Ok((JPartialToken::MemberValue(JPartialValue::String(s)), p))
                     } else {
                         let errmsg = format!("Unexpected");
@@ -245,11 +261,11 @@ impl<'s> Iterator for JPartialParser<'s> {
                     }
                 },
                 JLToken::NumberInteger(i) => {
-                    // self.expect = vec![JPartialExpect::ValueSeparator];
+                    self.set_expect_after_member_value();
                     Ok((JPartialToken::MemberValue(JPartialValue::Integer(i)), p))
                 },
                 JLToken::NumberFloat(f) => {
-                    // self.expect = vec![JPartialExpect::ValueSeparator];
+                    self.set_expect_after_member_value();
                     Ok((JPartialToken::MemberValue(JPartialValue::Float(f)), p))
                 },
                 JLToken::UnknownToken(s) => {
@@ -258,11 +274,14 @@ impl<'s> Iterator for JPartialParser<'s> {
                 },
                 _ => {
                     // Should not appear due to the concept of algorithm:
-                    // JLToken::Whitespace, JLToken::ObjectEnd, JLToken::ArrayEnd,
+                    // JLToken::Whitespace, , JLToken::ArrayEnd,
                     // JLToken::NameSeparator, JLToken::ValueSeparator, JLToken::StringToken
-                    panic!("Whitespaces should all be filtered out!")
+                    println!("{ltk:?}");
+                    panic!("This should not happen! Return to developer!")
                 },
-            }
+            };
+            println!("JPartialParser found: {:?} / Expecting: {:?}", token, self.expect);
+            token
         })
     }
 }
