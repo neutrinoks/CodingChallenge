@@ -10,10 +10,7 @@ mod tests {
     use crate::{
         jlexer::JLexerToken as JLToken,
         jobject,
-        jparser::{
-            JParseError, JParser, JPartialExpect as JPExpect, JPartialToken as JPToken,
-            UnexpTokenFeedb,
-        },
+        jparser::{JParseError, JParser, JPartialExpect as JPExpect, UnexpTokenFeedb},
         jparser_types::{JMember, JObject, JPartialValue as JPValue, JValue},
         unexpected_token,
     };
@@ -60,5 +57,33 @@ mod tests {
             &vec![JPExpect::MemberName]
         );
         assert_eq!(parser.parse(), err);
+    }
+
+    #[test]
+    fn cc_step_3() {
+        let source = expect_file("tests/step3/valid.json");
+        let mut parser = JParser::new(&source);
+        let obj = jobject!(
+            "key1", JValue::from(true),
+            "key2", JValue::from(false),
+            "key3", JValue::from(JPValue::Null),
+            "key4", JValue::from("value"),
+            "key5", JValue::from(101)
+            );
+        assert_ok!(parser.parse(), value == obj);
+
+        let source = expect_file("tests/step3/invalid.json");
+        let mut parser = JParser::new(&source);
+        let err = unexpected_token!(
+            29,
+            JLToken::UnknownToken("False".into()),
+            &vec![JPExpect::MemberValue, JPExpect::ObjectBegin]
+        );
+        assert_eq!(parser.parse(), err);
+    }
+
+    #[test]
+    fn cc_step_4() {
+        todo!()
     }
 }
