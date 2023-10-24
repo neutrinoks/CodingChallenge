@@ -9,7 +9,7 @@ pub mod jparser_types;
 #[cfg(test)]
 mod tests {
     use totems::{assert_ok, assert_err};
-    use crate::jparser::json_full_analysis;
+    use crate::jparser::{JObject, JParser, JParseError};
 
     #[inline]
     fn expect_file(file: &str) -> String {
@@ -19,9 +19,11 @@ mod tests {
     #[test]
     fn cc_step_1() {
         let source = expect_file("tests/step1/valid.json");
-        assert_ok!(json_full_analysis(&source));
+        let mut parser = JParser::new(&source);
+        assert_ok!(parser.parse(), value == JObject::new());
 
         let source = expect_file("tests/step1/invalid.json");
-        assert_ok!(json_full_analysis(&source));
+        let mut parser = JParser::new(&source);
+        assert_err!(parser.parse(), value == JParseError::NoBeginningObject);
     }
 }

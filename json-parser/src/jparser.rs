@@ -17,23 +17,23 @@
 //!
 //! *Strings* are: quotation-mark char* quotation-mark; where char: escaped | unescaped, TODO!
 
-use crate::{
-    jlexer::{JLexer, JLexerToken as JLToken},
-    jparser_types::{JPartialValue as JPValue, JValue, JObject, JMember},
-};
+use crate::jlexer::{JLexer, JLexerToken as JLToken};
+pub use crate::jparser_types::{JPartialValue as JPValue, JValue, JObject, JMember};
 
+
+const PANICSTR: &str = "Return this shit to developer!";
 
 macro_rules! unexpected_token {
     ($exp:expr, $pos:expr) => {
         {
             let errmsg = format!("expected {:?} at position {}", $exp, $pos);
-            Err(JParserError::UnexpectedToken(errmsg))
+            Err(JParseError::UnexpectedToken(errmsg))
         }
     };
     ($exp:expr, $pos:expr, $inst:expr) => {
         {
             let msg = format!("expected {:?} at position {} - found {:?}", $exp, $pos, $inst);
-            Err(JParserError::UnexpectedToken(msg))
+            Err(JParseError::UnexpectedToken(msg))
         }
     };
 }
@@ -60,7 +60,7 @@ enum JPartialExpect {
 
 /// Possible errors thrown by the JParser regarding grammar or token errors of the json-source.
 #[derive(Debug, Clone, PartialEq)]
-pub enum JParserError {
+pub enum JParseError {
     /// If source contains no main object: '{ }'.
     NoBeginningObject,
     /// If some object is not closed properly, missing '}'.
@@ -73,16 +73,16 @@ pub enum JParserError {
     UnknownToken(String),
 }
 
-impl std::fmt::Display for JParserError {
+impl std::fmt::Display for JParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> { 
         write!(f, "{:?}", self)
     }
 }
 
-impl std::error::Error for JParserError {}
+impl std::error::Error for JParseError {}
 
 /// A generic Result for JParser.
-pub type JPResult<T> = Result<T, JParserError>;
+pub type JPResult<T> = Result<T, JParseError>;
 
 /// Internal iterator type of JPartialParser.
 type JPartialParseIter<'s> = std::iter::Filter<JLexer<'s>, fn(&(JLToken,usize)) -> bool>;
@@ -139,7 +139,7 @@ impl<'s> JPartialParser<'s> {
             errmsg.push_str(&format!(" or {:?}", exp));
         }
         errmsg.push_str(&format!(" - found: {:?}", ltk));
-        Err(JParserError::UnexpectedToken(errmsg))
+        Err(JParseError::UnexpectedToken(errmsg))
     }
 
     fn do_we_expect(&self, exp: JPartialExpect) -> bool {
@@ -202,7 +202,7 @@ impl<'s> Iterator for JPartialParser<'s> {
                         self.object_cnt -= 1;
                         Ok((JPartialToken::ObjectEnd, p))
                     } else {
-                        Err(JParserError::UnclosedObject)
+                        Err(JParseError::UnclosedObject)
                     }
                 },
                 JLToken::ArrayBegin => {
@@ -252,7 +252,7 @@ impl<'s> Iterator for JPartialParser<'s> {
                         self.set_expect_after_member_value();
                         Ok((JPartialToken::MemberValue(JPValue::String(s)), p))
                     } else {
-                        panic!("Return this shit to developer!")
+                        panic!("{}", PANICSTR)
                     }
                 },
                 JLToken::NumberInteger(i) => {
@@ -265,14 +265,14 @@ impl<'s> Iterator for JPartialParser<'s> {
                 },
                 JLToken::UnknownToken(s) => {
                     let errmsg = format!("Unknown token \"{}\" at position {}", s, p);
-                    Err(JParserError::UnknownToken(errmsg))
+                    Err(JParseError::UnknownToken(errmsg))
                 },
                 _ => {
                     // Should not appear due to the concept of algorithm:
                     // JLToken::Whitespace, , JLToken::ArrayEnd,
                     // JLToken::NameSeparator, JLToken::ValueSeparator, JLToken::StringToken
                     println!("{ltk:?}");
-                    panic!("Return this shit to developer!")
+                    panic!("{}", PANICSTR)
                 },
             };
             println!("JPartialParser found: {:?} / Expecting: {:?}", token, self.expect);
@@ -283,30 +283,49 @@ impl<'s> Iterator for JPartialParser<'s> {
 }
 
 
-pub struct JParser {
-    partial_tokens: Vec<(JPartialToken, usize)>,
-    // pub tokens ...
-}
+/// The JParser
+pub struct JParser<'s>(JPartialParser<'s>);
 
-impl JParser {
-    /// New type pattern, creates a new parser from given source.
-    pub fn new(source: &str) -> JPResult<JParser> {
-        let mut jpart_parser = JPartialParser::new(source);
-        let mut partial_tokens: Vec<(JPartialToken, usize)> = Vec::new();
-        for tk in jpart_parser {
-            let tk = tk?;
-            partial_tokens.push(tk);
-        }
-
-        Ok(JParser{ partial_tokens })
+impl<'s> JParser<'s> {
+    /// New type pattern.
+    pub fn new(source: &'s str) -> JParser<'s> {
+        JParser(JPartialParser::new(source))
     }
 
-}
+    /// New type pattern, creates a new parser from given source.
+    pub fn parse(&mut self) -> JPResult<JObject> {
+        // consume main begin-object '{'
+        if let Some(result) = self.0.next() { 
+            assert_eq!(result?.0, JPartialToken::ObjectBegin);
+            Ok(self.parse_object()?)
+        } else {
+            Err(JParseError::NoBeginningObject)
+        }
+    }
 
+    /// Method starts with inner content, the object-begin was already consumed.
+    fn parse_object(&mut self) -> JPResult<JObject> {
+        let mut object = JObject::new();
+        loop {
+            // At this point, there should be only member-name or object-end!
+            let name = match self.0.next().unwrap()?.0 {
+                JPartialToken::MemberName(name) => name,
+                JPartialToken::ObjectEnd => break,
+                _ => panic!("{}", PANICSTR),
+            };
+            
+            // Here, we only expect member-values (single values, arrays and objects).
+            let value = match self.0.next().unwrap()?.0 {
+                JPartialToken::MemberValue(val) => JValue::from(val),
+                JPartialToken::Array(array) => JValue::Array(array),
+                JPartialToken::ObjectBegin => JValue::Object(self.parse_object()?),
+                _ => panic!("{}", PANICSTR),
+            };
 
-/// Runs a full lexical analysis of the source.
-pub fn json_full_analysis(source: &str) -> JPResult<()> {
-    Err(JParserError::NoBeginningObject)
+            object.members.push(JMember{ name, value });
+        }
+        Ok(object)
+    }
 }
 
 

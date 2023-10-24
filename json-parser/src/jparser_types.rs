@@ -42,34 +42,39 @@ impl From<&str> for JPartialValue {
 }
 
 /// Definition for one name-value-keypair of a json-object (including the main object).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct JMember {
     pub name: String,
     pub value: JValue,
 }
 
-impl JMember {
-    pub(crate) fn from_keypair<P>(name: &str, value: P) -> JMember 
-    where P: Into<JValue>
-    {
-        JMember{ name: name.to_string(), value: value.into() }
+#[derive(Debug, Clone, PartialEq)]
+pub struct JObject {
+    /// The object's members.
+    pub members: Vec<JMember>,
+}
+
+impl JObject {
+    /// New type pattern.
+    pub fn new() -> JObject {
+        JObject {
+            members: Vec::new(),
+        }
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct JObject {
-    /// The object's name.
-    pub name: String,
-    /// The object's members.
-    pub member: Vec<JMember>,
-}
-
 /// Value type of the JSON syntax.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum JValue {
     Object(JObject),
     Array(Vec<JPartialValue>),
     Value(JPartialValue),
+}
+
+impl From<JPartialValue> for JValue {
+    fn from(val: JPartialValue) -> JValue {
+        JValue::Value(val)
+    }
 }
 
 impl From<bool> for JValue {
