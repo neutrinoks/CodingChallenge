@@ -29,7 +29,7 @@ mod tests {
 
         let source = expect_file("tests/step1/invalid.json");
         let mut parser = JParser::new(&source);
-        assert_err!(parser.parse(), value == JParseError::NoBeginningObject(0));
+        assert_err!(parser.parse(), value == JParseError::NoBeginningObject(1));
     }
 
     #[test]
@@ -84,6 +84,33 @@ mod tests {
 
     #[test]
     fn cc_step_4() {
-        todo!()
+        let source = expect_file("tests/step4/valid.json");
+        let mut parser = JParser::new(&source);
+        let obj = jobject!(
+            "key", JValue::from("value"),
+            "key-n", JValue::from(false),
+            "key-o", JValue::Object(JObject::default()),
+            "key-l", JValue::Array(Vec::new())
+            );
+        assert_ok!(parser.parse(), value == obj);
+
+        let source = expect_file("tests/step4/valid2.json");
+        let mut parser = JParser::new(&source);
+        let obj = jobject!(
+            "key", JValue::from("value"),
+            "key-n", JValue::from(101),
+            "key-o", JValue::Object(jobject!("inner key", JValue::from("inner value"))),
+            "key-l", JValue::Array(vec![JPValue::from("list value")])
+            );
+        assert_ok!(parser.parse(), value == obj);
+
+        let source = expect_file("tests/step3/invalid.json");
+        let mut parser = JParser::new(&source);
+        let err = unexpected_token!(
+            29,
+            JLToken::UnknownToken("'".into()),
+            &vec![JPExpect::MemberValue, JPExpect::ObjectBegin]
+        );
+        assert_eq!(parser.parse(), err);
     }
 }
