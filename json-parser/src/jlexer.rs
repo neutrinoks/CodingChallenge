@@ -1,6 +1,6 @@
 //! Module contains the JSON-parser and the internal used JSON-Lexer.
 //!
-//! For more background informations on the following definitions have a look at the 
+//! For more background informations on the following definitions have a look at the
 //! (RFC-8259)[https://www.rfc-editor.org/rfc/rfc8259].
 //!
 //! ### Some notes from the RFC-8259 (Chapter 2, JSON Grammar)
@@ -14,7 +14,6 @@
 /// - '}' as end-object token
 /// - ':' as name-separator
 /// - ',' as value-separator
-
 use JLexerToken::*;
 
 /// Internal macro for do-not-repeat-yourself
@@ -79,12 +78,11 @@ type LexIterType<'s> = std::str::CharIndices<'s>;
 /// - No token can be of zero length -> that is not a token!
 ///
 /// From this informations we derive the possible tokens, see JLexerToken.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct JLexer<'s> {
     /// Reference to source text.
     source: &'s str,
     /// Internal iterator for string-based source.
-    // iter: std::str::CharIndices<'s>,
     iter: LexIterType<'s>,
     /// Last tokens we identified. Last one: last_tk[1], before last one: last_tk[0].
     last_tk: [JLexerToken; 2],
@@ -144,7 +142,7 @@ impl<'s> JLexer<'s> {
         })
     }
 
-    fn lex_non_string(&mut self) -> MidLexerOutput {
+    fn lex_structural(&mut self) -> MidLexerOutput {
         self.iter.next().map(|(p, c)| {
             let token = match c {
                 whitespace_pat!() => {
@@ -159,19 +157,7 @@ impl<'s> JLexer<'s> {
                 ':' => NameSeparator,
                 ',' => ValueSeparator,
                 '\"' => StringToken,
-                't' => {
-                    // Check if true-token, otherwise UnknownToken
-                    TrueToken
-                }
-                'f' => {
-                    // Check if false-token, otherwise UnknownToken
-                    FalseToken
-                }
-                'n' => {
-                    // Check if null-token, otherwise UnknownToken
-                    NullToken
-                }
-                _ => UnknownToken(c.into()),
+                _ => panic!("Return this shit to developer"),
             };
             (token, p)
         })
@@ -183,10 +169,16 @@ impl<'s> Iterator for JLexer<'s> {
 
     fn next(&mut self) -> Option<Self::Item> {
         // First check for expected strings or possible numbers.
-        let result = if self.expects_string_content() {
-            self.try_lex_string()
+        if self.expects_string_content() {
+            if check_if_next_is(&self.iter, '\"') {
+                self.lex_structural()
+            } else {
+                self.try_lex_string()
+            }
         } else if check_if_next_fits(&self.iter, is_number) {
             self.try_lex_number()
+        } else if check_if_next_fits(&self.iter, is_structural) {
+            self.lex_structural()
         } else if check_if_next_is(&self.iter, 't') {
             self.try_string_token("true", TrueToken)
         } else if check_if_next_is(&self.iter, 'f') {
@@ -194,14 +186,11 @@ impl<'s> Iterator for JLexer<'s> {
         } else if check_if_next_is(&self.iter, 'n') {
             self.try_string_token("null", NullToken)
         } else {
-            None
-        };
-
-        // Then do regular single token lexing.
-        if result.is_none() {
-            self.lex_non_string()
-        } else {
-            result
+            // Unknown token, extract and return it as feedback information.
+            seek_until(&mut self.iter, char::is_alphabetic).map(|(start, stop)| {
+                let slice = String::from(&self.source[start..stop]);
+                (UnknownToken(slice), start)
+            })
         }
         .map(|(tk, p)| {
             self.last_tk[0] = self.last_tk[1].clone();
@@ -219,6 +208,13 @@ fn is_number(c: char) -> bool {
     matches!(
         c,
         '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '.'
+    )
+}
+
+fn is_structural(c: char) -> bool {
+    matches!(
+        c,
+        whitespace_pat!() | '{' | '[' | ']' | '}' | ':' | ',' | '\"'
     )
 }
 
@@ -362,7 +358,7 @@ mod tests {
 
     #[test]
     fn tokens_with_string_tokens() {
-        let mut lexer = JLexer::new("{\"is_lexer\": true,false-null}");
+        let mut lexer = JLexer::new(r#"{"is_lexer": true,false null xxx}"#);
         assert_cmp!(lexer, ObjectBegin, 1);
         assert_cmp!(lexer, StringToken, 2);
         assert_cmp!(lexer, StringContent(String::from("is_lexer")), 3);
@@ -372,8 +368,10 @@ mod tests {
         assert_cmp!(lexer, TrueToken, 14);
         assert_cmp!(lexer, ValueSeparator, 18);
         assert_cmp!(lexer, FalseToken, 19);
-        assert_cmp!(lexer, UnknownToken(String::from("-")), 24);
+        assert_cmp!(lexer, Whitespace, 24);
         assert_cmp!(lexer, NullToken, 25);
-        assert_cmp!(lexer, ObjectEnd, 29);
+        assert_cmp!(lexer, Whitespace, 29);
+        assert_cmp!(lexer, UnknownToken("xxx".to_string()), 30);
+        assert_cmp!(lexer, ObjectEnd, 33);
     }
 }

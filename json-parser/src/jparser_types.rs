@@ -48,19 +48,10 @@ pub struct JMember {
     pub value: JValue,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct JObject {
     /// The object's members.
     pub members: Vec<JMember>,
-}
-
-impl JObject {
-    /// New type pattern.
-    pub fn new() -> JObject {
-        JObject {
-            members: Vec::new(),
-        }
-    }
 }
 
 /// Value type of the JSON syntax.
@@ -105,7 +96,7 @@ impl From<&str> for JValue {
 macro_rules! jobject {
     ($($name:expr, $val:expr),*) => {
         {
-            let mut object = JObject::new();
+            let mut object = JObject::default();
             $(
                 object.members.push(JMember{ name: $name.into(), value: $val });
             )*
