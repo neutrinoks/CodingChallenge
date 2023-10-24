@@ -17,30 +17,24 @@
 //!
 //! *Strings* are: quotation-mark char* quotation-mark; where char: escaped | unescaped, TODO!
 
-use crate::jlexer::{JLexer, JLexerToken as JLToken};
-pub use crate::jparser_types::{JPartialValue as JPValue, JValue, JObject, JMember};
+use crate::{
+    jlexer::{JLexer, JLexerToken as JLToken},
+    jparser_types::{JPartialValue as JPValue, JValue, JObject, JMember},
+};
 
 
 const PANICSTR: &str = "Return this shit to developer!";
 
 macro_rules! unexpected_token {
-    ($exp:expr, $pos:expr) => {
-        {
-            let errmsg = format!("expected {:?} at position {}", $exp, $pos);
-            Err(JParseError::UnexpectedToken(errmsg))
-        }
-    };
-    ($exp:expr, $pos:expr, $inst:expr) => {
-        {
-            let msg = format!("expected {:?} at position {} - found {:?}", $exp, $pos, $inst);
-            Err(JParseError::UnexpectedToken(msg))
-        }
+    ($pos:expr, $found:expr, $expect:expr) => {
+        Err(JParseError::UnexpectedToken($pos, 
+            UnexpTokenFeedb::from($found), UnexpTokenFeedb::from($expect)))
     };
 }
 
 /// Possible tokens created by the JPartialParser as input for JParser.
-#[derive(Debug, PartialEq)]
-enum JPartialToken {
+#[derive(Clone, Debug, PartialEq)]
+pub enum JPartialToken {
     ObjectBegin,
     ObjectEnd,
     Array(Vec<JPValue>),
@@ -50,27 +44,66 @@ enum JPartialToken {
 
 /// This is a reduced variant of JPartialToken, only interpreted as expection of JPartialParser.
 /// The purpose of this definition is controling the syntax and grammar of the json-source.
-#[derive(Debug, PartialEq)]
-enum JPartialExpect {
+#[derive(Clone, Debug, PartialEq)]
+pub enum JPartialExpect {
     ObjectBegin,
     ObjectEnd,
     MemberName,
     MemberValue,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum UnexpTokenFeedb {
+    JPExpect(Vec<JPartialExpect>),
+    JPToken(JPartialToken),
+    JLToken(JLToken),
+}
+
+impl From<&Vec<JPartialExpect>> for UnexpTokenFeedb {
+    fn from(vpe: &Vec<JPartialExpect>) -> UnexpTokenFeedb {
+        UnexpTokenFeedb::JPExpect(vpe.clone())
+    }
+}
+
+impl From<&JPartialToken> for UnexpTokenFeedb {
+    fn from(jtk: &JPartialToken) -> UnexpTokenFeedb {
+        UnexpTokenFeedb::JPToken(jtk.clone())
+    }
+}
+
+impl From<&JLToken> for UnexpTokenFeedb {
+    fn from(ltk: &JLToken) -> UnexpTokenFeedb {
+        UnexpTokenFeedb::JLToken(ltk.clone())
+    }
+}
+
+impl From<JPartialToken> for UnexpTokenFeedb {
+    fn from(jtk: JPartialToken) -> UnexpTokenFeedb {
+        UnexpTokenFeedb::JPToken(jtk)
+    }
+}
+
+impl From<JLToken> for UnexpTokenFeedb {
+    fn from(ltk: JLToken) -> UnexpTokenFeedb {
+        UnexpTokenFeedb::JLToken(ltk)
+    }
+}
+
 /// Possible errors thrown by the JParser regarding grammar or token errors of the json-source.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum JParseError {
     /// If source contains no main object: '{ }'.
-    NoBeginningObject,
+    NoBeginningObject(usize),
     /// If some object is not closed properly, missing '}'.
-    UnclosedObject,
+    UnclosedObject(usize),
     /// If an array was not closed by ']'.
-    UnclosedArray,
-    /// Unexpected token at this position.
-    UnexpectedToken(String),
+    UnclosedArray(usize),
+    /// Unexpected end of source.
+    UnexpectedEnd(usize),
+    /// Unexpected token at this position, what we found and what we expected.
+    UnexpectedToken(usize, UnexpTokenFeedb, UnexpTokenFeedb),
     /// Unknown token was returned from the lexer.
-    UnknownToken(String),
+    UnknownToken(usize, String),
 }
 
 impl std::fmt::Display for JParseError {
@@ -132,14 +165,7 @@ impl<'s> JPartialParser<'s> {
             }
         }
 
-        // Otherwise build error message and return error.
-        let mut e_iter = self.expect.iter();
-        let mut errmsg = format!("at position {} expected: {:?}", p, e_iter.next().unwrap());
-        for exp in e_iter {
-            errmsg.push_str(&format!(" or {:?}", exp));
-        }
-        errmsg.push_str(&format!(" - found: {:?}", ltk));
-        Err(JParseError::UnexpectedToken(errmsg))
+        unexpected_token!(p, ltk, &self.expect)
     }
 
     fn do_we_expect(&self, exp: JPartialExpect) -> bool {
@@ -154,14 +180,14 @@ impl<'s> JPartialParser<'s> {
     fn next_shall_be(&mut self, exp: JLToken, p: usize) -> JPResult<()> {
         let next = self.lexer.next();
         if next.is_none() {
-            return unexpected_token!(exp, p)
+            return Err(JParseError::UnexpectedEnd(p))
         }
 
         let next = next.unwrap();
         if exp == next.0 {
             Ok(())
         } else {
-            unexpected_token!(exp, p, next)
+            unexpected_token!(p, &next.0, &exp)
         }
     }
 
@@ -191,7 +217,7 @@ impl<'s> Iterator for JPartialParser<'s> {
             // Check for first grammar errors (if was expected).
             self.was_expected(&ltk, p)?;
 
-            let token = match ltk {
+            let tk_res: JPResult<(JPartialToken, usize)> = match ltk {
                 JLToken::ObjectBegin => {
                     self.expect = vec![JPartialExpect::MemberName, JPartialExpect::ObjectEnd];
                     self.object_cnt += 1;
@@ -202,7 +228,7 @@ impl<'s> Iterator for JPartialParser<'s> {
                         self.object_cnt -= 1;
                         Ok((JPartialToken::ObjectEnd, p))
                     } else {
-                        Err(JParseError::UnclosedObject)
+                        Err(JParseError::UnclosedObject(p))
                     }
                 },
                 JLToken::ArrayBegin => {
@@ -216,7 +242,7 @@ impl<'s> Iterator for JPartialParser<'s> {
                             JLToken::TrueToken => array.push(JPValue::True),
                             JLToken::FalseToken => array.push(JPValue::True),
                             JLToken::NullToken => array.push(JPValue::Null),
-                            _ => return unexpected_token!("JPValue", pi, ltk),
+                            _ => return unexpected_token!(pi, ltk, &self.expect),
                         }
                         if self.crib_if_next_is(JLToken::ValueSeparator) {
                             self.next();
@@ -264,20 +290,17 @@ impl<'s> Iterator for JPartialParser<'s> {
                     Ok((JPartialToken::MemberValue(JPValue::Float(f)), p))
                 },
                 JLToken::UnknownToken(s) => {
-                    let errmsg = format!("Unknown token \"{}\" at position {}", s, p);
-                    Err(JParseError::UnknownToken(errmsg))
+                    Err(JParseError::UnknownToken(p, s))
                 },
                 _ => {
                     // Should not appear due to the concept of algorithm:
-                    // JLToken::Whitespace, , JLToken::ArrayEnd,
-                    // JLToken::NameSeparator, JLToken::ValueSeparator, JLToken::StringToken
-                    println!("{ltk:?}");
+                    // JLToken::Whitespace, JLToken::ArrayEnd, JLToken::NameSeparator,
+                    // JLToken::ValueSeparator, JLToken::StringToken
                     panic!("{}", PANICSTR)
                 },
             };
-            println!("JPartialParser found: {:?} / Expecting: {:?}", token, self.expect);
             self.count += 1;
-            token
+            tk_res
         })
     }
 }
@@ -299,7 +322,7 @@ impl<'s> JParser<'s> {
             assert_eq!(result?.0, JPartialToken::ObjectBegin);
             Ok(self.parse_object()?)
         } else {
-            Err(JParseError::NoBeginningObject)
+            Err(JParseError::NoBeginningObject(0))
         }
     }
 

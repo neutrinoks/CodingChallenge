@@ -100,3 +100,16 @@ impl From<&str> for JValue {
         JValue::Value(JPartialValue::from(s))
     }
 }
+
+#[macro_export]
+macro_rules! jobject {
+    ($($name:expr, $val:expr),*) => {
+        {
+            let mut object = JObject::new();
+            $(
+                object.members.push(JMember{ name: $name.into(), value: $val });
+            )*
+            object
+        }
+    }
+}
