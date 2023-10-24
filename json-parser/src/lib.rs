@@ -3,6 +3,7 @@
 // mod jdatatypes;
 pub mod jlexer;
 pub mod jparser;
+pub mod jparser_types;
 
 
 #[cfg(test)]
