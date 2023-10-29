@@ -5,4 +5,4 @@ This is my personal repository for participating on some coding challenges from 
 ### Challenges
 
 - [X] Own wc tool
-- [ ] Own JSON parser (_in progress_)
+- [X] Own JSON parser
