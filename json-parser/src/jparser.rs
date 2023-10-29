@@ -232,15 +232,16 @@ impl<'s> Iterator for JPartialParser<'s> {
                     self.expect = vec![JPartialExpect::MemberName, JPartialExpect::ObjectEnd];
                     self.object_cnt += 1;
                     Ok((JPartialToken::ObjectBegin, p))
-                }
+                },
                 JLToken::ObjectEnd => {
                     if self.object_cnt > 0 {
                         self.object_cnt -= 1;
+                        self.set_expect_after_member_value();
                         Ok((JPartialToken::ObjectEnd, p))
                     } else {
                         Err(JParseError::UnclosedObject(p))
                     }
-                }
+                },
                 JLToken::ArrayBegin => {
                     let mut array: Vec<JPValue> = Vec::new();
                     if !self.crib_if_next_is(JLToken::ArrayEnd) {
@@ -250,7 +251,7 @@ impl<'s> Iterator for JPartialParser<'s> {
                                 JLToken::NumberInteger(i) => array.push(JPValue::Integer(i)),
                                 JLToken::NumberFloat(f) => array.push(JPValue::Float(f)),
                                 JLToken::TrueToken => array.push(JPValue::True),
-                                JLToken::FalseToken => array.push(JPValue::True),
+                                JLToken::FalseToken => array.push(JPValue::False),
                                 JLToken::NullToken => array.push(JPValue::Null),
                                 _ => return unexpected_token!(pi, ltk, &self.expect),
                             }
@@ -264,19 +265,19 @@ impl<'s> Iterator for JPartialParser<'s> {
                     self.next_shall_be(JLToken::ArrayEnd, p)?;
                     self.set_expect_after_member_value();
                     Ok((JPartialToken::Array(array), p))
-                }
+                },
                 JLToken::TrueToken => {
                     self.set_expect_after_member_value();
                     Ok((JPartialToken::MemberValue(JPValue::True), p))
-                }
+                },
                 JLToken::FalseToken => {
                     self.set_expect_after_member_value();
                     Ok((JPartialToken::MemberValue(JPValue::False), p))
-                }
+                },
                 JLToken::NullToken => {
                     self.set_expect_after_member_value();
                     Ok((JPartialToken::MemberValue(JPValue::Null), p))
-                }
+                },
                 JLToken::StringContent(s) => {
                     if self.do_we_expect(JPartialExpect::MemberName) {
                         self.next_shall_be(JLToken::NameSeparator, p)?;
@@ -289,15 +290,15 @@ impl<'s> Iterator for JPartialParser<'s> {
                     } else {
                         panic!("{}", PANICSTR)
                     }
-                }
+                },
                 JLToken::NumberInteger(i) => {
                     self.set_expect_after_member_value();
                     Ok((JPartialToken::MemberValue(JPValue::Integer(i)), p))
-                }
+                },
                 JLToken::NumberFloat(f) => {
                     self.set_expect_after_member_value();
                     Ok((JPartialToken::MemberValue(JPValue::Float(f)), p))
-                }
+                },
                 JLToken::UnknownToken(s) => Err(JParseError::UnknownToken(p, s)),
                 _ => {
                     // Should not appear due to the concept of algorithm:
@@ -306,7 +307,6 @@ impl<'s> Iterator for JPartialParser<'s> {
                     panic!("{}", PANICSTR)
                 }
             };
-            println!("PartialParser Token! {:?}", tk_res);
             self.count += 1;
             tk_res
         })
@@ -325,8 +325,7 @@ impl<'s> JParser<'s> {
     /// New type pattern, creates a new parser from given source.
     pub fn parse(&mut self) -> JPResult<JObject> {
         // Consume first object-begin and parse the main object...
-        if let Some(result) = self.0.next() {
-            println!("Parser! throw away: {:?}", result);
+        if let Some(_result) = self.0.next() {
             self.parse_object(1)
         } else {
             Err(JParseError::NoBeginningObject(1))
@@ -335,12 +334,10 @@ impl<'s> JParser<'s> {
 
     /// Method starts with inner content, the object-begin was already consumed.
     fn parse_object(&mut self, cnt: usize) -> JPResult<JObject> {
-        println!("Parser! parse_object({})", cnt);
         let mut object = JObject::default();
         loop {
             // At this point, there should be only member-name or object-end!
             let jtk = self.0.next().unwrap()?.0;
-            println!("Parser! parse_object.name: {:?}", jtk);
             let name = match jtk {
                 JPartialToken::MemberName(name) => name,
                 JPartialToken::ObjectEnd => break,
@@ -349,22 +346,18 @@ impl<'s> JParser<'s> {
 
             // Here, we only expect member-values (single values, arrays and objects).
             let jtk = self.0.next().unwrap()?.0;
-            println!("Parser! parse_object.value: {:?}", jtk);
             let value = match jtk {
                 JPartialToken::MemberValue(val) => JValue::from(val),
                 JPartialToken::Array(array) => JValue::Array(array),
                 JPartialToken::ObjectBegin => {
                     let result = self.parse_object(cnt + 1);
-                    println!("{result:?}");
                     JValue::Object(result?)
                 },
                 _ => panic!("{}", PANICSTR),
             };
 
             object.members.push(JMember { name, value });
-            println!("{:?}", object.members);
         }
-        println!("{}: {object:?}", cnt);
         Ok(object)
     }
 }
@@ -427,15 +420,19 @@ mod tests {
     fn partial_parse_arrays() {
         let mut parser = JPartialParser::new(r#"{
             "key1": ["test", true, false],
-            "key2": []
+            "key2": [],
+            "key3": [null, 15, 7.5]
             }"#);
         assert_cmp!(parser, JPartialToken::ObjectBegin, 1);
         assert_cmp!(parser, JPartialToken::MemberName("key1".to_string()), 16);
         let array = vec![JPValue::String("test".to_string()), JPValue::True, JPValue::False];
         assert_cmp!(parser, JPartialToken::Array(array), 23);
-        assert_cmp!(parser, JPartialToken::MemberName("key2".to_string()), 12);
-        assert_cmp!(parser, JPartialToken::Array(Vec::new()), 15);
-        assert_cmp!(parser, JPartialToken::ObjectEnd, 20);
+        assert_cmp!(parser, JPartialToken::MemberName("key2".to_string()), 59);
+        assert_cmp!(parser, JPartialToken::Array(Vec::new()), 66);
+        assert_cmp!(parser, JPartialToken::MemberName("key3".to_string()), 83);
+        let array = vec![JPValue::Null, JPValue::Integer(15), JPValue::Float(7.5)];
+        assert_cmp!(parser, JPartialToken::Array(array), 90);
+        assert_cmp!(parser, JPartialToken::ObjectEnd, 118);
     }
 
     #[test]
@@ -447,18 +444,18 @@ mod tests {
             } 
         }"#);
         assert_cmp!(parser, JPartialToken::ObjectBegin, 1);
-        assert_cmp!(parser, JPartialToken::MemberName("object".to_string()), 3);
-        assert_cmp!(parser, JPartialToken::ObjectBegin, 12);
-        assert_cmp!(parser, JPartialToken::MemberName("data".to_string()), 15);
+        assert_cmp!(parser, JPartialToken::MemberName("object".to_string()), 16);
+        assert_cmp!(parser, JPartialToken::ObjectBegin, 25);
+        assert_cmp!(parser, JPartialToken::MemberName("data".to_string()), 45);
         assert_cmp!(
             parser,
             JPartialToken::MemberValue(JPValue::from("data")),
-            23
+            53
         );
-        assert_cmp!(parser, JPartialToken::MemberName("object2".to_string()), 31);
-        assert_cmp!(parser, JPartialToken::ObjectBegin, 41);
-        assert_cmp!(parser, JPartialToken::ObjectEnd, 42);
-        assert_cmp!(parser, JPartialToken::ObjectEnd, 44);
-        assert_cmp!(parser, JPartialToken::ObjectEnd, 46);
+        assert_cmp!(parser, JPartialToken::MemberName("object2".to_string()), 78);
+        assert_cmp!(parser, JPartialToken::ObjectBegin, 88);
+        assert_cmp!(parser, JPartialToken::ObjectEnd, 89);
+        assert_cmp!(parser, JPartialToken::ObjectEnd, 103);
+        assert_cmp!(parser, JPartialToken::ObjectEnd, 114);
     }
 }

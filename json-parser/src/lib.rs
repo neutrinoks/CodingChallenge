@@ -104,13 +104,8 @@ mod tests {
             );
         assert_ok!(parser.parse(), value == obj);
 
-        let source = expect_file("tests/step3/invalid.json");
+        let source = expect_file("tests/step4/invalid.json");
         let mut parser = JParser::new(&source);
-        let err = unexpected_token!(
-            29,
-            JLToken::UnknownToken("'".into()),
-            &vec![JPExpect::MemberValue, JPExpect::ObjectBegin]
-        );
-        assert_eq!(parser.parse(), err);
+        assert_eq!(parser.parse(), Err(JParseError::UnexpectedEnd(97)));
     }
 }

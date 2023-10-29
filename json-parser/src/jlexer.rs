@@ -149,7 +149,7 @@ impl<'s> JLexer<'s> {
                     // Check following characters, and skip the whole whitespace series.
                     seek_until(&mut self.iter, is_whitespace);
                     Whitespace
-                }
+                },
                 '{' => ObjectBegin,
                 '}' => ObjectEnd,
                 '[' => ArrayBegin,
@@ -358,7 +358,7 @@ mod tests {
 
     #[test]
     fn tokens_with_string_tokens() {
-        let mut lexer = JLexer::new(r#"{"is_lexer": true,false null xxx}"#);
+        let mut lexer = JLexer::new(r#"{"is_lexer": true,false null xxx false}"#);
         assert_cmp!(lexer, ObjectBegin, 1);
         assert_cmp!(lexer, StringToken, 2);
         assert_cmp!(lexer, StringContent(String::from("is_lexer")), 3);
@@ -372,6 +372,31 @@ mod tests {
         assert_cmp!(lexer, NullToken, 25);
         assert_cmp!(lexer, Whitespace, 29);
         assert_cmp!(lexer, UnknownToken("xxx".to_string()), 30);
-        assert_cmp!(lexer, ObjectEnd, 33);
+        assert_cmp!(lexer, Whitespace, 33);
+        assert_cmp!(lexer, FalseToken, 34);
+        assert_cmp!(lexer, ObjectEnd, 39);
+    }
+
+    #[test]
+    fn tokens_with_empty_object_and_array() {
+        let mut lexer = JLexer::new(r#"{"array": [], "object": {}}"#);
+        assert_cmp!(lexer, ObjectBegin, 1);
+        assert_cmp!(lexer, StringToken, 2);
+        assert_cmp!(lexer, StringContent(String::from("array")), 3);
+        assert_cmp!(lexer, StringToken, 8);
+        assert_cmp!(lexer, NameSeparator, 9);
+        assert_cmp!(lexer, Whitespace, 10);
+        assert_cmp!(lexer, ArrayBegin, 11);
+        assert_cmp!(lexer, ArrayEnd, 12);
+        assert_cmp!(lexer, ValueSeparator, 13);
+        assert_cmp!(lexer, Whitespace, 14);
+        assert_cmp!(lexer, StringToken, 15);
+        assert_cmp!(lexer, StringContent(String::from("object")), 16);
+        assert_cmp!(lexer, StringToken, 22);
+        assert_cmp!(lexer, NameSeparator, 23);
+        assert_cmp!(lexer, Whitespace, 24);
+        assert_cmp!(lexer, ObjectBegin, 25);
+        assert_cmp!(lexer, ObjectEnd, 26);
+        assert_cmp!(lexer, ObjectEnd, 27);
     }
 }
