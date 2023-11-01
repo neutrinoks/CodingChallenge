@@ -64,12 +64,17 @@ mod tests {
         let source = expect_file("tests/step3/valid.json");
         let mut parser = JParser::new(&source);
         let obj = jobject!(
-            "key1", JValue::from(true),
-            "key2", JValue::from(false),
-            "key3", JValue::from(JPValue::Null),
-            "key4", JValue::from("value"),
-            "key5", JValue::from(101)
-            );
+            "key1",
+            JValue::from(true),
+            "key2",
+            JValue::from(false),
+            "key3",
+            JValue::from(JPValue::Null),
+            "key4",
+            JValue::from("value"),
+            "key5",
+            JValue::from(101)
+        );
         assert_ok!(parser.parse(), value == obj);
 
         let source = expect_file("tests/step3/invalid.json");
@@ -87,21 +92,29 @@ mod tests {
         let source = expect_file("tests/step4/valid.json");
         let mut parser = JParser::new(&source);
         let obj = jobject!(
-            "key", JValue::from("value"),
-            "key-n", JValue::from(false),
-            "key-o", JValue::Object(JObject::default()),
-            "key-l", JValue::Array(Vec::new())
-            );
+            "key",
+            JValue::from("value"),
+            "key-n",
+            JValue::from(false),
+            "key-o",
+            JValue::Object(JObject::default()),
+            "key-l",
+            JValue::Array(Vec::new())
+        );
         assert_ok!(parser.parse(), value == obj);
 
         let source = expect_file("tests/step4/valid2.json");
         let mut parser = JParser::new(&source);
         let obj = jobject!(
-            "key", JValue::from("value"),
-            "key-n", JValue::from(101),
-            "key-o", JValue::Object(jobject!("inner key", JValue::from("inner value"))),
-            "key-l", JValue::Array(vec![JPValue::from("list value")])
-            );
+            "key",
+            JValue::from("value"),
+            "key-n",
+            JValue::from(101),
+            "key-o",
+            JValue::Object(jobject!("inner key", JValue::from("inner value"))),
+            "key-l",
+            JValue::Array(vec![JPValue::from("list value")])
+        );
         assert_ok!(parser.parse(), value == obj);
 
         let source = expect_file("tests/step4/invalid.json");

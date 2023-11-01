@@ -149,7 +149,7 @@ impl<'s> JLexer<'s> {
                     // Check following characters, and skip the whole whitespace series.
                     seek_until(&mut self.iter, is_whitespace);
                     Whitespace
-                },
+                }
                 '{' => ObjectBegin,
                 '}' => ObjectEnd,
                 '[' => ArrayBegin,
