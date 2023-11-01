@@ -6,7 +6,7 @@ This is my personal repository for participating on some coding challenges from 
 
 - [X] Own WC Tool
 - [X] Own JSON Parser
-- [ ] Own Compression Tool
+- [ ] Own Compression Tool (_in progress..._)
 - [ ] Own Cut Tool
 - [ ] Own Load Balancer
 - [ ] Own Sort Tool
