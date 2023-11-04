@@ -3,8 +3,71 @@
 use clap::Parser;
 use std::{
     error, fs,
-    io::{self, BufReader, IsTerminal, Read},
+    io::{self, BufReader, IsTerminal, Read, Seek},
 };
+
+/// This threshold affects whether a file will be read in completely or iterated vai buffer.
+const FILE_SIZE_THRESHOLD: usize = 10_000_000;
+
+/// Content management system for providing either the full content as String, or in case of larger
+/// files piece by piece.
+#[derive(Debug)]
+pub enum Content {
+    /// Small file, we read in the full content.
+    SmallFile(String, bool),
+    /// Large file, we read the content piece by piece.
+    LargeFile(BufReader<fs::File>),
+}
+
+impl Content {
+    /// Renews the iterator, because it will be consumed multiple times.
+    pub fn rewind(&mut self) -> crate::Result<()> {
+        match self {
+            Content::SmallFile(_, flag) => *flag = true,
+            Content::LargeFile(reader) => reader.rewind()?,
+        }
+        Ok(())
+    }
+
+    /// Pendant-method to fs::read_to_string().
+    pub fn read_to_string(file: &str) -> crate::Result<Content> {
+        let file_size = fs::metadata(file)?.len() as usize;
+        if file_size > FILE_SIZE_THRESHOLD {
+            let file = fs::File::open(file)?;
+            let reader = BufReader::new(file);
+            Ok(Content::LargeFile(reader))
+        } else {
+            Ok(Content::SmallFile(fs::read_to_string(file)?, true))
+        }
+    }
+}
+
+impl Iterator for Content {
+    type Item = String;
+
+    fn next(&mut self) -> Option<String> {
+        match self {
+            Content::SmallFile(content, flag) => {
+                if *flag {
+                    *flag = false;
+                    Some(content.clone())
+                } else {
+                    None
+                }
+            }
+            Content::LargeFile(reader) => {
+                let mut content = String::new();
+                unsafe {
+                    if reader.read(content.as_bytes_mut()).is_ok() {
+                        Some(content)
+                    } else {
+                        None
+                    }
+                }
+            }
+        }
+    }
+}
 
 /// The whole input data for main function (parameters and text to be processed).
 #[derive(Debug)]
@@ -12,25 +75,26 @@ pub struct CcWcInput {
     /// CLI parameters.
     pub args: CcWcArgs,
     /// Content to be analyzed.
-    pub content: String,
+    pub content: Content,
 }
 
 impl CcWcInput {
     /// Default method to process user input from command line. Method checks whether stdin was used to
     /// path a text to be analyzed or a filename was passed to be read in.
-    pub fn parse_input() -> Result<CcWcInput, Box<dyn error::Error>> {
-        let mut content = String::new();
-        let args = if io::stdin().is_terminal() {
+    pub fn parse_input() -> crate::Result<CcWcInput> {
+        let (args, content) = if io::stdin().is_terminal() {
             // No usage of stdin, a filename should be provided.
             let args = CcWcArgs::parse();
-            if let Some(file) = &args.file {
-                content = fs::read_to_string(file)?;
+            let content = if let Some(file) = &args.file {
+                // Check file size and decide for reading in completely or buffered.
+                Content::read_to_string(file)?
             } else {
                 return Err(String::from("No input file or data was provided").into());
-            }
-            args
+            };
+            (args, content)
         } else {
             // Stdin provides content input, no filename should be provided.
+            let mut content = String::new();
             let mut reader = BufReader::new(io::stdin());
             reader.read_to_string(&mut content)?;
             let mut args = CcWcArgs::parse();
@@ -41,7 +105,7 @@ impl CcWcInput {
                 );
                 args.file = None;
             }
-            args
+            (args, Content::SmallFile(content, true))
         };
 
         Ok(CcWcInput { args, content })
@@ -56,7 +120,7 @@ impl TryFrom<&str> for CcWcInput {
         if args.file.is_none() {
             return Err(io::Error::new(io::ErrorKind::Other, "no file has been specified").into());
         }
-        let content = fs::read_to_string(args.file.as_ref().unwrap())?;
+        let content = Content::SmallFile(fs::read_to_string(args.file.as_ref().unwrap())?, true);
         Ok(CcWcInput { args, content })
     }
 }
