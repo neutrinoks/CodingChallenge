@@ -2,6 +2,7 @@
 name = "json-parser"
 version = "0.1.0"
 edition = "2021"
+authors = ["Michael Eberhardt <github@michael-eberhardt.de>"]
 
 [dependencies]
 totems = "0.2"
