@@ -4,14 +4,14 @@ This is my personal repository for participating on some coding challenges from 
 
 ### Challenges
 
-- [X] Own WC Tool
-- [X] Own JSON Parser
-- [ ] Own Compression Tool (_in progress..._)
-- [ ] Own Cut Tool
-- [ ] Own Load Balancer
-- [ ] Own Sort Tool
-- [ ] Own Calculator
-- [ ] Own Redis Server
-- [ ] Own Grep
-- [ ] Own Uniq Tool
-- [ ] Own Web Server
+- [X] WC Tool
+- [X] JSON Parser
+- [ ] Compression Tool (_in progress..._)
+- [ ] Cut Tool
+- [ ] Load Balancer
+- [ ] Sort Tool
+- [ ] Calculator
+- [ ] Redis Server
+- [ ] Grep
+- [ ] Uniq Tool
+- [ ] Web Server
