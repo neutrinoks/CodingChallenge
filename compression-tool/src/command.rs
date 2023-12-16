@@ -39,7 +39,9 @@ impl TryFrom<CtArgs> for CtInput {
     type Error = std::io::Error;
 
     fn try_from(args: CtArgs) -> Result<CtInput, Self::Error> {
-        Ok(CtInput{ content: std::fs::read_to_string(args.filename)? })
+        Ok(CtInput {
+            content: std::fs::read_to_string(args.filename)?,
+        })
     }
 }
 

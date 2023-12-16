@@ -1,80 +1,94 @@
 //! Library with functionality of compression-tool.
 
 pub mod command;
+pub mod types;
 
-use std::collections::HashMap;
 use command::CtInput;
+use types::*;
 
-/// Crate common default Result type.
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+pub use types::Result;
 
-/// Stores a single frequency-bin, e.g. for the character 'a', how many times 'a' appeared in a 
-/// given input stream.
-#[derive(Debug, Eq, PartialEq)]
-pub struct CharSpectrum(Vec<(char, usize)>);
-
-impl CharSpectrum {
-    pub fn new() -> CharSpectrum {
-        CharSpectrum(Vec::new())
-    }
-
-    pub fn from_stream(stream: &str) -> CharSpectrum {
-        let mut s = CharSpectrum::new();
-        s.analyse_stream(stream);
-        s
-    }
-
-    pub fn analyse_stream(&mut self, stream: &str) {
-        let mut map: HashMap<char, usize> = HashMap::new();
-        stream.chars().for_each(|c| {
-            let cnt = if let Some(cnt) = map.get(&c) {
-                cnt + 1
-            } else {
-                1
-            };
-            let _ = map.insert(c, cnt);
-        });
-        self.0 = map.into_iter().collect();
-        self.0.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-    }
+/// One of the internal development steps and functions to be tested.
+fn frequency_analysis(input: &CtInput) -> Result<CharSpectrum> {
+    Ok(CharSpectrum::from_stream(&input.content))
 }
 
-/// TODO
-pub fn frequency_analysis(input: &CtInput) -> Result<CharSpectrum> {
-    let mut spectrum = CharSpectrum::new();
-    spectrum.analyse_stream(&input.content);
-    Ok(spectrum)
+/// One of the internal development steps and functions to be tested.
+fn create_huffman_tree(spectrum: CharSpectrum) -> Result<CtBinaryTree> {
+    Ok(CtBinaryTree::try_from(spectrum)?)
 }
 
 /// Main entry method for compression-tool use case, to be able to separate the code into library
 /// and not main module.
 pub fn compression_tool(input: CtInput) -> Result<String> {
-    let result = frequency_analysis(&input)?;
-    Ok(format!("{result:?}"))
-}
-
-#[cfg(test)]
-pub fn testfile(name: &str) -> CtInput {
-    let args = crate::command::CtArgs{ filename: name.to_string() };
-    CtInput::try_from(args).expect(&format!("testfile/expected: {}", name))
+    let spectrum = frequency_analysis(&input)?;
+    let h_tree = create_huffman_tree(spectrum)?;
+    Ok(format!("{h_tree:?}"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn testfile(name: &str) -> CtInput {
+        let args = crate::command::CtArgs {
+            filename: name.to_string(),
+        };
+        CtInput::try_from(args).expect(&format!("testfile/expected: {}", name))
+    }
+
+    fn get_spectrum() -> CharSpectrum {
+        frequency_analysis(&testfile("135-0.txt")).expect("frequency_analysis failed")
+    }
+
     #[test]
     fn step_1() {
-        let result = frequency_analysis(&testfile("135-0.txt")).expect("frequency_analysis failed");
-        let t = result.0.iter().find(|&&x| x.0 == 't').expect("no 't' found");
-        let x = result.0.iter().find(|&&x| x.0 == 'X').expect("no 'X' found");
+        let result = get_spectrum();
+        let t = result
+            .0
+            .iter()
+            .find(|&&x| x.0 == 't')
+            .expect("no 't' found");
+        let x = result
+            .0
+            .iter()
+            .find(|&&x| x.0 == 'X')
+            .expect("no 'X' found");
         assert_eq!(t.1, 223000);
         assert_eq!(x.1, 333);
     }
 
     #[test]
     fn step_2() {
-        todo!();
+        let spec = CharSpectrum(vec![
+            ('z', 2),
+            ('k', 7),
+            ('m', 24),
+            ('c', 32),
+            ('u', 37),
+            ('d', 42),
+            ('l', 42),
+            ('e', 120),
+        ]);
+
+        let tree = create_huffman_tree(spec).expect("create_huffman_tree failed");
+        let mut tree_iter = tree.iter();
+
+        assert!(tree_iter.next().unwrap().test_hierarchy(306));
+        assert_eq!(*tree_iter.next().unwrap(), CtTreeNode::Bin('e', 120));
+        assert!(tree_iter.next().unwrap().test_hierarchy(186));
+        assert!(tree_iter.next().unwrap().test_hierarchy(79));
+        assert_eq!(*tree_iter.next().unwrap(), CtTreeNode::Bin('u', 37));
+        assert_eq!(*tree_iter.next().unwrap(), CtTreeNode::Bin('d', 42));
+        assert!(tree_iter.next().unwrap().test_hierarchy(107));
+        assert!(tree_iter.next().unwrap().test_bin('l', 42));
+        assert!(tree_iter.next().unwrap().test_hierarchy(65));
+        assert!(tree_iter.next().unwrap().test_bin('c', 32));
+        assert!(tree_iter.next().unwrap().test_hierarchy(33));
+        assert!(tree_iter.next().unwrap().test_hierarchy(9));
+        assert!(tree_iter.next().unwrap().test_bin('z', 2));
+        assert!(tree_iter.next().unwrap().test_bin('k', 7));
+        assert!(tree_iter.next().unwrap().test_bin('m', 24));
     }
 
     #[test]
