@@ -31,8 +31,15 @@ impl CtInput {
         // };
         // Ok(CcWcInput { args, content })
         let args = CtArgs::parse();
-        let content = std::fs::read_to_string(args.filename)?;
-        Ok(CtInput{ content })
+        CtInput::try_from(args).map_err(|e| e.into())
+    }
+}
+
+impl TryFrom<CtArgs> for CtInput {
+    type Error = std::io::Error;
+
+    fn try_from(args: CtArgs) -> Result<CtInput, Self::Error> {
+        Ok(CtInput{ content: std::fs::read_to_string(args.filename)? })
     }
 }
 
