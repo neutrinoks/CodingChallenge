@@ -6,7 +6,7 @@ use std::{borrow::Borrow, collections::HashMap};
 /// Crate common default Result type.
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-/// Stores a single frequency-bin, e.g. for the character 'a', how many times 'a' appeared in a
+/// Stores a single frequency-bin, e.g. for the character 'r', how many times 'r' appeared in a
 /// given input stream.
 #[derive(Debug, Eq, PartialEq)]
 pub struct CharSpectrum(pub Vec<(char, usize)>);
@@ -96,6 +96,19 @@ pub struct CtBinaryTreeIter<'r> {
     parents: Vec<(&'r CtTreeNode, bool)>,
 }
 
+impl<'r> CtBinaryTreeIter<'r> {
+    /// Generates the code from the given parents stack.
+    pub fn next_code(&self) -> Option<u8> {
+        if self.parents.is_empty() {
+            None
+        } else {
+            let bits: Vec<u8> = self.parents.iter().map(|x| x.1 as u8).collect();
+            let code: u8 = bits.iter().fold(0, |result, &bit| (result << 1) ^ bit);
+            Some(code)
+        }
+    }
+}
+
 impl<'r> From<&'r CtBinaryTree> for CtBinaryTreeIter<'r> {
     fn from(tree: &'r CtBinaryTree) -> CtBinaryTreeIter<'r> {
         CtBinaryTreeIter {
@@ -105,8 +118,8 @@ impl<'r> From<&'r CtBinaryTree> for CtBinaryTreeIter<'r> {
     }
 }
 
-impl<'a> Iterator for CtBinaryTreeIter<'a> {
-    type Item = &'a CtTreeNode;
+impl<'r> Iterator for CtBinaryTreeIter<'r> {
+    type Item = &'r CtTreeNode;
 
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.next_node?;
@@ -216,5 +229,72 @@ impl CtTreeNode {
 impl From<(char, usize)> for CtTreeNode {
     fn from(b: (char, usize)) -> CtTreeNode {
         CtTreeNode::Bin(b.0, b.1)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct PrefixCodeEntry {
+    /// Given letter, e.g. 'a'.
+    pub letter: char,
+    /// Its calculated frequency (how many times it was counted).
+    pub frequency: usize,
+    /// The derived code for this letter by using the Huffman-binary-tree.
+    pub code: u8,
+    /// How many bits are needed for the derived code of this letter.
+    pub bits: usize,
+}
+
+impl PrefixCodeEntry {
+    pub fn new(letter: char, frequency: usize, code: u8) -> PrefixCodeEntry {
+        let mut bits = 1; // in case of zero
+        for n in (0..8).rev() {
+            if code & (1 << n) > 0 {
+                bits = n + 1;
+                break;
+            }
+        }
+        PrefixCodeEntry {
+            letter,
+            frequency,
+            code,
+            bits,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn test(letter: char, frequency: usize, code: u8, bits: usize) -> PrefixCodeEntry {
+        PrefixCodeEntry {
+            letter,
+            frequency,
+            code,
+            bits,
+        }
+    }
+}
+
+/// TODO
+pub type PrefixCodeTable = HashMap<char, PrefixCodeEntry>;
+
+impl From<&CtBinaryTree> for PrefixCodeTable {
+    fn from(tree: &CtBinaryTree) -> PrefixCodeTable {
+        let mut table: HashMap<char, PrefixCodeEntry> = HashMap::new();
+        let mut tree_iter = tree.iter();
+        let mut searching = true;
+
+        while searching {
+            let code = tree_iter.next_code();
+            if let Some(node) = tree_iter.next() {
+                match node {
+                    CtTreeNode::Bin(c, f) => {
+                        table.insert(*c, PrefixCodeEntry::new(*c, *f, code.unwrap()));
+                    }
+                    _ => continue,
+                }
+            } else {
+                searching = false;
+            }
+        }
+
+        table
     }
 }

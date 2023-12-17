@@ -18,12 +18,18 @@ fn create_huffman_tree(spectrum: CharSpectrum) -> Result<CtBinaryTree> {
     Ok(CtBinaryTree::try_from(spectrum)?)
 }
 
+/// One of the internal development steps and functions to be tested.
+fn create_prefix_table(tree: &CtBinaryTree) -> PrefixCodeTable {
+    PrefixCodeTable::from(tree)
+}
+
 /// Main entry method for compression-tool use case, to be able to separate the code into library
 /// and not main module.
 pub fn compression_tool(input: CtInput) -> Result<String> {
     let spectrum = frequency_analysis(&input)?;
     let h_tree = create_huffman_tree(spectrum)?;
-    Ok(format!("{h_tree:?}"))
+    let table = create_prefix_table(&h_tree);
+    Ok(format!("{table:?}"))
 }
 
 #[cfg(test)]
@@ -35,6 +41,19 @@ mod tests {
             filename: name.to_string(),
         };
         CtInput::try_from(args).expect(&format!("testfile/expected: {}", name))
+    }
+
+    fn opendsa_example_spectrum() -> CharSpectrum {
+        CharSpectrum(vec![
+            ('z', 2),
+            ('k', 7),
+            ('m', 24),
+            ('c', 32),
+            ('u', 37),
+            ('d', 42),
+            ('l', 42),
+            ('e', 120),
+        ])
     }
 
     fn get_spectrum() -> CharSpectrum {
@@ -60,17 +79,7 @@ mod tests {
 
     #[test]
     fn step_2() {
-        let spec = CharSpectrum(vec![
-            ('z', 2),
-            ('k', 7),
-            ('m', 24),
-            ('c', 32),
-            ('u', 37),
-            ('d', 42),
-            ('l', 42),
-            ('e', 120),
-        ]);
-
+        let spec = opendsa_example_spectrum();
         let tree = create_huffman_tree(spec).expect("create_huffman_tree failed");
         let mut tree_iter = tree.iter();
 
@@ -93,7 +102,26 @@ mod tests {
 
     #[test]
     fn step_3() {
-        todo!();
+        let spec = opendsa_example_spectrum();
+        let tree = create_huffman_tree(spec).expect("create_huffman_tree failed");
+        let prefix_table = create_prefix_table(&tree);
+
+        let result = prefix_table.get(&'c').expect("no entry 'c' found");
+        assert_eq!(*result, PrefixCodeEntry::test('c', 32, 14, 4));
+        let result = prefix_table.get(&'d').expect("no entry 'd' found");
+        assert_eq!(*result, PrefixCodeEntry::test('d', 42, 5, 3));
+        let result = prefix_table.get(&'e').expect("no entry 'e' found");
+        assert_eq!(*result, PrefixCodeEntry::test('e', 120, 0, 1));
+        let result = prefix_table.get(&'k').expect("no entry 'k' found");
+        assert_eq!(*result, PrefixCodeEntry::test('k', 7, 61, 6));
+        let result = prefix_table.get(&'l').expect("no entry 'l' found");
+        assert_eq!(*result, PrefixCodeEntry::test('l', 42, 6, 3));
+        let result = prefix_table.get(&'m').expect("no entry 'm' found");
+        assert_eq!(*result, PrefixCodeEntry::test('m', 24, 31, 5));
+        let result = prefix_table.get(&'u').expect("no entry 'u' found");
+        assert_eq!(*result, PrefixCodeEntry::test('u', 37, 4, 3));
+        let result = prefix_table.get(&'z').expect("no entry 'z' found");
+        assert_eq!(*result, PrefixCodeEntry::test('z', 2, 60, 6));
     }
 
     #[test]
