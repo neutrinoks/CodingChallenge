@@ -2,9 +2,7 @@
 //! which represent milestone date outputs during the development.
 
 use std::{borrow::Borrow, collections::HashMap};
-
-/// Crate common default Result type.
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+use crate::Result;
 
 /// Stores a single frequency-bin, e.g. for the character 'r', how many times 'r' appeared in a
 /// given input stream.
