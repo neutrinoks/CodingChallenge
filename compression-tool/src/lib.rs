@@ -1,12 +1,12 @@
 //! Library with functionality of compression-tool.
 
 pub mod command;
-pub mod types;
+pub mod algorithm;
 
 use command::CtInput;
-use types::*;
+use algorithm::*;
 
-pub use types::Result;
+pub use algorithm::Result;
 
 /// One of the internal development steps and functions to be tested.
 fn frequency_analysis(input: &CtInput) -> Result<CharSpectrum> {
