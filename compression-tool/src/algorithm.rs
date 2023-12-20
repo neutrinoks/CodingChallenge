@@ -2,7 +2,6 @@
 //! which represent milestone date outputs during the development.
 
 use std::{borrow::Borrow, collections::HashMap};
-use crate::Result;
 
 /// Stores a single frequency-bin, e.g. for the character 'r', how many times 'r' appeared in a
 /// given input stream.
@@ -92,18 +91,13 @@ impl TryFrom<CharSpectrum> for CtBinaryTree {
 pub struct CtBinaryTreeIter<'r> {
     next_node: Option<&'r CtTreeNode>,
     parents: Vec<(&'r CtTreeNode, bool)>,
+    last_code: u8,
 }
 
 impl<'r> CtBinaryTreeIter<'r> {
     /// Generates the code from the given parents stack.
-    pub fn next_code(&self) -> Option<u8> {
-        if self.parents.is_empty() {
-            None
-        } else {
-            let bits: Vec<u8> = self.parents.iter().map(|x| x.1 as u8).collect();
-            let code: u8 = bits.iter().fold(0, |result, &bit| (result << 1) ^ bit);
-            Some(code)
-        }
+    pub fn last_code(&self) -> u8 {
+        self.last_code
     }
 }
 
@@ -112,6 +106,7 @@ impl<'r> From<&'r CtBinaryTree> for CtBinaryTreeIter<'r> {
         CtBinaryTreeIter {
             next_node: Some(&tree.node),
             parents: Vec::new(),
+            last_code: 0,
         }
     }
 }
@@ -134,6 +129,11 @@ impl<'r> Iterator for CtBinaryTreeIter<'r> {
                 self.next_node = Some(left.as_ref().unwrap().borrow());
             }
             CtTreeNode::Bin(_, _) => {
+                // In case of a new Bin, we update our internal code.
+                let bits: Vec<u8> = self.parents.iter().map(|x| x.1 as u8).collect();
+                let code: u8 = bits.iter().fold(0, |result, &bit| (result << 1) ^ bit);
+                self.last_code = code;
+                // Now we search for the next leaf.
                 if self.parents.is_empty() {
                     self.next_node = None;
                 } else {
@@ -243,6 +243,7 @@ pub struct PrefixCodeEntry {
 }
 
 impl PrefixCodeEntry {
+    /// New type pattern as constructor for `PrefixCodeEntry`.
     pub fn new(letter: char, frequency: usize, code: u8) -> PrefixCodeEntry {
         let mut bits = 1; // in case of zero
         for n in (0..8).rev() {
@@ -270,21 +271,56 @@ impl PrefixCodeEntry {
     }
 }
 
+impl std::fmt::Display for PrefixCodeEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(f, "| {} | {:3} | {:6} |", self.letter, self.code, self.frequency)
+    }
+}
+
 /// TODO
-pub type PrefixCodeTable = HashMap<char, PrefixCodeEntry>;
+#[derive(Debug)]
+pub struct PrefixCodeTable(Vec<PrefixCodeEntry>);
+
+impl<'a> PrefixCodeTable {
+    pub fn get(&'a self, c: char) -> Option<&'a PrefixCodeEntry> {
+        for e in self.0.iter() {
+            if e.letter == c {
+                return Some(e)
+            }
+        }
+        None
+    }
+
+    pub fn iter(&'a self) -> PrefixCodeTableIter<'a> {
+        PrefixCodeTableIter{
+            table: &self.0,
+            idx: 0,
+        }
+    }
+}
+
+impl std::ops::Index<usize> for PrefixCodeTable {
+    type Output = PrefixCodeEntry;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
 
 impl From<&CtBinaryTree> for PrefixCodeTable {
     fn from(tree: &CtBinaryTree) -> PrefixCodeTable {
-        let mut table: HashMap<char, PrefixCodeEntry> = HashMap::new();
+        let mut table: Vec<PrefixCodeEntry> = Vec::new();
         let mut tree_iter = tree.iter();
         let mut searching = true;
 
+        let mut count = 0;
         while searching {
-            let code = tree_iter.next_code();
             if let Some(node) = tree_iter.next() {
                 match node {
                     CtTreeNode::Bin(c, f) => {
-                        table.insert(*c, PrefixCodeEntry::new(*c, *f, code.unwrap()));
+                        let code = tree_iter.last_code();
+                        table.push(PrefixCodeEntry::new(*c, *f, code));
+                        count += 1;
                     }
                     _ => continue,
                 }
@@ -292,7 +328,28 @@ impl From<&CtBinaryTree> for PrefixCodeTable {
                 searching = false;
             }
         }
+        table.sort_by(|x, y| x.code.cmp(&y.code));
+        println!("PrefixCodeTable generated with {} entries", count);
 
-        table
+        PrefixCodeTable(table)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PrefixCodeTableIter<'a> {
+    table: &'a Vec<PrefixCodeEntry>,
+    idx: usize,
+}
+
+impl<'a> Iterator for PrefixCodeTableIter<'a> {
+    type Item = &'a PrefixCodeEntry;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx < self.table.len() - 1 {
+            self.idx += 1;
+            Some(&self.table[self.idx])
+        } else {
+            None
+        }
     }
 }

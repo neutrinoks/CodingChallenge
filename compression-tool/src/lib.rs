@@ -30,7 +30,12 @@ pub fn compression_tool(input: CtInput) -> Result<String> {
     let spectrum = frequency_analysis(&input)?;
     let h_tree = create_huffman_tree(spectrum)?;
     let table = create_prefix_table(&h_tree);
-    Ok(format!("{table:?}"))
+    
+    println!("Abstract from the PrefixCodeTable");
+    for i in 0..20 {
+        println!("{}", table[i]);
+    }
+    Ok(format!(""))
 }
 
 #[cfg(test)]
@@ -107,21 +112,21 @@ mod tests {
         let tree = create_huffman_tree(spec).expect("create_huffman_tree failed");
         let prefix_table = create_prefix_table(&tree);
 
-        let result = prefix_table.get(&'c').expect("no entry 'c' found");
+        let result = prefix_table.get('c').expect("no entry 'c' found");
         assert_eq!(*result, PrefixCodeEntry::test('c', 32, 14, 4));
-        let result = prefix_table.get(&'d').expect("no entry 'd' found");
+        let result = prefix_table.get('d').expect("no entry 'd' found");
         assert_eq!(*result, PrefixCodeEntry::test('d', 42, 5, 3));
-        let result = prefix_table.get(&'e').expect("no entry 'e' found");
+        let result = prefix_table.get('e').expect("no entry 'e' found");
         assert_eq!(*result, PrefixCodeEntry::test('e', 120, 0, 1));
-        let result = prefix_table.get(&'k').expect("no entry 'k' found");
+        let result = prefix_table.get('k').expect("no entry 'k' found");
         assert_eq!(*result, PrefixCodeEntry::test('k', 7, 61, 6));
-        let result = prefix_table.get(&'l').expect("no entry 'l' found");
+        let result = prefix_table.get('l').expect("no entry 'l' found");
         assert_eq!(*result, PrefixCodeEntry::test('l', 42, 6, 3));
-        let result = prefix_table.get(&'m').expect("no entry 'm' found");
+        let result = prefix_table.get('m').expect("no entry 'm' found");
         assert_eq!(*result, PrefixCodeEntry::test('m', 24, 31, 5));
-        let result = prefix_table.get(&'u').expect("no entry 'u' found");
+        let result = prefix_table.get('u').expect("no entry 'u' found");
         assert_eq!(*result, PrefixCodeEntry::test('u', 37, 4, 3));
-        let result = prefix_table.get(&'z').expect("no entry 'z' found");
+        let result = prefix_table.get('z').expect("no entry 'z' found");
         assert_eq!(*result, PrefixCodeEntry::test('z', 2, 60, 6));
     }
 
