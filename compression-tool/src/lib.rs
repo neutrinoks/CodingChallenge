@@ -35,21 +35,22 @@ pub fn compression_tool(input: CtInput) -> Result<String> {
     for i in 0..20 {
         println!("{}", table[i]);
     }
-    Ok(format!(""))
+    Ok(format!("{:?}", table))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn testfile(name: &str) -> CtInput {
+    pub(crate) fn testfile(name: &str) -> CtInput {
         let args = crate::command::CtArgs {
             filename: name.to_string(),
         };
         CtInput::try_from(args).expect(&format!("testfile/expected: {}", name))
     }
 
-    fn opendsa_example_spectrum() -> CharSpectrum {
+    pub(crate) fn spec_opendsa() -> CharSpectrum {
+        // Example from https://opendsa-server.cs.vt.edu/ODSA/Books/CS3/html/Huffman.html
         CharSpectrum(vec![
             ('z', 2),
             ('k', 7),
@@ -62,13 +63,31 @@ mod tests {
         ])
     }
 
-    fn get_spectrum() -> CharSpectrum {
+    pub(crate) fn spec_135_0() -> CharSpectrum {
         frequency_analysis(&testfile("135-0.txt")).expect("frequency_analysis failed")
+    }
+
+    pub(crate) fn table_opendsa() -> PrefixCodeTable {
+        let mut table: Vec<PrefixCodeEntry> = Vec::new();
+        table.push(PrefixCodeEntry::new('e', 0));
+        table.push(PrefixCodeEntry::new('u', 4));
+        table.push(PrefixCodeEntry::new('d', 5));
+        table.push(PrefixCodeEntry::new('l', 6));
+        table.push(PrefixCodeEntry::new('c', 14));
+        table.push(PrefixCodeEntry::new('m', 31));
+        table.push(PrefixCodeEntry::new('z', 60));
+        table.push(PrefixCodeEntry::new('k', 61));
+        PrefixCodeTable(table)
+    }
+
+    pub(crate) fn table_135_0() -> PrefixCodeTable {
+        let tree = create_huffman_tree(spec_135_0()).unwrap();
+        create_prefix_table(&tree)
     }
 
     #[test]
     fn step_1() {
-        let result = get_spectrum();
+        let result = spec_135_0();
         let t = result
             .0
             .iter()
@@ -85,7 +104,7 @@ mod tests {
 
     #[test]
     fn step_2() {
-        let spec = opendsa_example_spectrum();
+        let spec = spec_opendsa();
         let tree = create_huffman_tree(spec).expect("create_huffman_tree failed");
         let mut tree_iter = tree.iter();
 
@@ -108,26 +127,26 @@ mod tests {
 
     #[test]
     fn step_3() {
-        let spec = opendsa_example_spectrum();
+        let spec = spec_opendsa();
         let tree = create_huffman_tree(spec).expect("create_huffman_tree failed");
         let prefix_table = create_prefix_table(&tree);
 
         let result = prefix_table.get('c').expect("no entry 'c' found");
-        assert_eq!(*result, PrefixCodeEntry::test('c', 32, 14, 4));
+        assert_eq!(*result, PrefixCodeEntry::test('c', 14, 4));
         let result = prefix_table.get('d').expect("no entry 'd' found");
-        assert_eq!(*result, PrefixCodeEntry::test('d', 42, 5, 3));
+        assert_eq!(*result, PrefixCodeEntry::test('d', 5, 3));
         let result = prefix_table.get('e').expect("no entry 'e' found");
-        assert_eq!(*result, PrefixCodeEntry::test('e', 120, 0, 1));
+        assert_eq!(*result, PrefixCodeEntry::test('e', 0, 1));
         let result = prefix_table.get('k').expect("no entry 'k' found");
-        assert_eq!(*result, PrefixCodeEntry::test('k', 7, 61, 6));
+        assert_eq!(*result, PrefixCodeEntry::test('k', 61, 6));
         let result = prefix_table.get('l').expect("no entry 'l' found");
-        assert_eq!(*result, PrefixCodeEntry::test('l', 42, 6, 3));
+        assert_eq!(*result, PrefixCodeEntry::test('l', 6, 3));
         let result = prefix_table.get('m').expect("no entry 'm' found");
-        assert_eq!(*result, PrefixCodeEntry::test('m', 24, 31, 5));
+        assert_eq!(*result, PrefixCodeEntry::test('m', 31, 5));
         let result = prefix_table.get('u').expect("no entry 'u' found");
-        assert_eq!(*result, PrefixCodeEntry::test('u', 37, 4, 3));
+        assert_eq!(*result, PrefixCodeEntry::test('u', 4, 3));
         let result = prefix_table.get('z').expect("no entry 'z' found");
-        assert_eq!(*result, PrefixCodeEntry::test('z', 2, 60, 6));
+        assert_eq!(*result, PrefixCodeEntry::test('z', 60, 6));
     }
 
     #[test]

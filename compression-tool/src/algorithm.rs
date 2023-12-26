@@ -230,12 +230,10 @@ impl From<(char, usize)> for CtTreeNode {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PrefixCodeEntry {
     /// Given letter, e.g. 'a'.
     pub letter: char,
-    /// Its calculated frequency (how many times it was counted).
-    pub frequency: usize,
     /// The derived code for this letter by using the Huffman-binary-tree.
     pub code: u8,
     /// How many bits are needed for the derived code of this letter.
@@ -244,42 +242,45 @@ pub struct PrefixCodeEntry {
 
 impl PrefixCodeEntry {
     /// New type pattern as constructor for `PrefixCodeEntry`.
-    pub fn new(letter: char, frequency: usize, code: u8) -> PrefixCodeEntry {
-        let mut bits = 1; // in case of zero
-        for n in (0..8).rev() {
-            if code & (1 << n) > 0 {
-                bits = n + 1;
-                break;
-            }
-        }
+    pub fn new(letter: char, code: u8) -> PrefixCodeEntry {
         PrefixCodeEntry {
             letter,
-            frequency,
             code,
-            bits,
+            bits: count_bits(code),
         }
     }
 
     #[cfg(test)]
-    pub fn test(letter: char, frequency: usize, code: u8, bits: usize) -> PrefixCodeEntry {
+    pub fn test(letter: char, code: u8, bits: usize) -> PrefixCodeEntry {
         PrefixCodeEntry {
             letter,
-            frequency,
             code,
             bits,
         }
     }
+
 }
 
 impl std::fmt::Display for PrefixCodeEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(f, "| {} | {:3} | {:6} |", self.letter, self.code, self.frequency)
+        write!(f, "| {} | {:3} |", self.letter, self.code)
     }
 }
 
+fn count_bits(code: u8) -> usize {
+    let mut bits = 1; // in case of zero
+    for n in (0..8).rev() {
+        if code & (1 << n) > 0 {
+            bits = n + 1;
+            break;
+        }
+    }
+    bits
+}
+
 /// TODO
-#[derive(Debug)]
-pub struct PrefixCodeTable(Vec<PrefixCodeEntry>);
+#[derive(Clone, Debug, PartialEq)]
+pub struct PrefixCodeTable(pub Vec<PrefixCodeEntry>);
 
 impl<'a> PrefixCodeTable {
     pub fn get(&'a self, c: char) -> Option<&'a PrefixCodeEntry> {
@@ -317,9 +318,9 @@ impl From<&CtBinaryTree> for PrefixCodeTable {
         while searching {
             if let Some(node) = tree_iter.next() {
                 match node {
-                    CtTreeNode::Bin(c, f) => {
+                    CtTreeNode::Bin(c, _f) => {
                         let code = tree_iter.last_code();
-                        table.push(PrefixCodeEntry::new(*c, *f, code));
+                        table.push(PrefixCodeEntry::new(*c, code));
                         count += 1;
                     }
                     _ => continue,
@@ -335,6 +336,31 @@ impl From<&CtBinaryTree> for PrefixCodeTable {
     }
 }
 
+impl From<&[u8]> for PrefixCodeTable {
+    fn from(data: &[u8]) -> PrefixCodeTable {
+        let mut table: Vec<PrefixCodeEntry> = Vec::new();
+        for i in (0..data.len()).step_by(2) {
+            table.push(PrefixCodeEntry::new(data[i] as char, data[i+1]));
+        }
+        table.sort_by(|x, y| x.code.cmp(&y.code));
+
+        PrefixCodeTable(table)
+    }
+}
+
+impl From<PrefixCodeTable> for Vec<u8> {
+    fn from(table: PrefixCodeTable) -> Vec<u8> {
+        println!("{table:?}");
+        let mut data = Vec::new();
+        for entry in table.iter() {
+            println!("{entry:?}");
+            data.push(entry.letter as u8);
+            data.push(entry.code);
+        }
+        data
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PrefixCodeTableIter<'a> {
     table: &'a Vec<PrefixCodeEntry>,
@@ -345,11 +371,58 @@ impl<'a> Iterator for PrefixCodeTableIter<'a> {
     type Item = &'a PrefixCodeEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.idx < self.table.len() - 1 {
+        if self.idx < self.table.len() {
+            let val = &self.table[self.idx];
             self.idx += 1;
-            Some(&self.table[self.idx])
+            Some(val)
         } else {
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PrefixCodeEntry, PrefixCodeTable};
+
+    #[test]
+    fn pfc_iter() {
+        let table = crate::tests::table_opendsa();
+        let mut table_iter = table.iter();
+        assert_eq!(table_iter.next(), Some(&PrefixCodeEntry::new('e', 0)));
+        assert_eq!(table_iter.next(), Some(&PrefixCodeEntry::new('u', 4)));
+        assert_eq!(table_iter.next(), Some(&PrefixCodeEntry::new('d', 5)));
+        assert_eq!(table_iter.next(), Some(&PrefixCodeEntry::new('l', 6)));
+        assert_eq!(table_iter.next(), Some(&PrefixCodeEntry::new('c', 14)));
+        assert_eq!(table_iter.next(), Some(&PrefixCodeEntry::new('m', 31)));
+        assert_eq!(table_iter.next(), Some(&PrefixCodeEntry::new('z', 60)));
+        assert_eq!(table_iter.next(), Some(&PrefixCodeEntry::new('k', 61)));
+    }
+
+    #[test]
+    fn pfc_to_vec() {
+        let table = crate::tests::table_opendsa();
+        let data: Vec<u8> = table.clone().into();
+        assert_eq!(
+            vec![
+                'e' as u8, 0u8,
+                'u' as u8, 4u8,
+                'd' as u8, 5u8,
+                'l' as u8, 6u8,
+                'c' as u8, 14u8,
+                'm' as u8, 31u8,
+                'z' as u8, 60u8,
+                'k' as u8, 61u8,
+            ],
+            data
+        );
+    }
+
+    #[test]
+    fn pfc_to_vec_and_back() {
+        let table = crate::tests::table_opendsa();
+        let data: Vec<u8> = table.clone().into();
+        let result = PrefixCodeTable::from(&data[..]);
+        assert_eq!(table, result);
     }
 }
