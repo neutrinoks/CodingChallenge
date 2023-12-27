@@ -252,13 +252,8 @@ impl PrefixCodeEntry {
 
     #[cfg(test)]
     pub fn test(letter: char, code: u8, bits: usize) -> PrefixCodeEntry {
-        PrefixCodeEntry {
-            letter,
-            code,
-            bits,
-        }
+        PrefixCodeEntry { letter, code, bits }
     }
-
 }
 
 impl std::fmt::Display for PrefixCodeEntry {
@@ -286,14 +281,14 @@ impl<'a> PrefixCodeTable {
     pub fn get(&'a self, c: char) -> Option<&'a PrefixCodeEntry> {
         for e in self.0.iter() {
             if e.letter == c {
-                return Some(e)
+                return Some(e);
             }
         }
         None
     }
 
     pub fn iter(&'a self) -> PrefixCodeTableIter<'a> {
-        PrefixCodeTableIter{
+        PrefixCodeTableIter {
             table: &self.0,
             idx: 0,
         }
@@ -340,7 +335,7 @@ impl From<&[u8]> for PrefixCodeTable {
     fn from(data: &[u8]) -> PrefixCodeTable {
         let mut table: Vec<PrefixCodeEntry> = Vec::new();
         for i in (0..data.len()).step_by(2) {
-            table.push(PrefixCodeEntry::new(data[i] as char, data[i+1]));
+            table.push(PrefixCodeEntry::new(data[i] as char, data[i + 1]));
         }
         table.sort_by(|x, y| x.code.cmp(&y.code));
 
@@ -403,14 +398,8 @@ mod tests {
         let data = Vec::<u8>::from(&table);
         assert_eq!(
             vec![
-                'e' as u8, 0u8,
-                'u' as u8, 4u8,
-                'd' as u8, 5u8,
-                'l' as u8, 6u8,
-                'c' as u8, 14u8,
-                'm' as u8, 31u8,
-                'z' as u8, 60u8,
-                'k' as u8, 61u8,
+                'e' as u8, 0u8, 'u' as u8, 4u8, 'd' as u8, 5u8, 'l' as u8, 6u8, 'c' as u8, 14u8,
+                'm' as u8, 31u8, 'z' as u8, 60u8, 'k' as u8, 61u8,
             ],
             data
         );

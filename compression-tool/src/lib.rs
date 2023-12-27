@@ -4,8 +4,8 @@ pub mod algorithm;
 pub mod command;
 pub mod types;
 
-use command::CtInput;
 use algorithm::*;
+use command::CtInput;
 
 pub use types::Result;
 
@@ -30,12 +30,12 @@ pub fn compression_tool(input: CtInput) -> Result<String> {
     let spectrum = frequency_analysis(&input)?;
     let h_tree = create_huffman_tree(spectrum)?;
     let table = create_prefix_table(&h_tree);
-    
-    println!("Abstract from the PrefixCodeTable");
+
+    let mut output = "Abstract from the PrefixCodeTable\n".to_string();
     for i in 0..20 {
-        println!("{}", table[i]);
+        output.push_str(&format!("{}\n", table[i]));
     }
-    Ok(format!("{:?}", table))
+    Ok(output)
 }
 
 #[cfg(test)]
@@ -82,10 +82,10 @@ mod tests {
         PrefixCodeTable(table)
     }
 
-    pub(crate) fn table_135_0() -> PrefixCodeTable {
-        let tree = create_huffman_tree(spec_135_0()).unwrap();
-        create_prefix_table(&tree)
-    }
+    // pub(crate) fn table_135_0() -> PrefixCodeTable {
+    //     let tree = create_huffman_tree(spec_135_0()).unwrap();
+    //     create_prefix_table(&tree)
+    // }
 
     #[test]
     fn step_1() {

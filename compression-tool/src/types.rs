@@ -33,7 +33,7 @@ impl TryFrom<&[u8]> for Header {
     fn try_from(data: &[u8]) -> std::result::Result<Header, Self::Error> {
         // (0)
         if data[0] != FILE_CONST {
-            return Err(())
+            return Err(());
         }
 
         // (1) & (2)
@@ -46,10 +46,13 @@ impl TryFrom<&[u8]> for Header {
         }
 
         // (3) & (4)
-        let m = ((data[n+2] as usize) << 8) | (data[n+3] as usize);
-        let prefix_table = PrefixCodeTable::from(&data[n+4..n+m+4]);
+        let m = ((data[n + 2] as usize) << 8) | (data[n + 3] as usize);
+        let prefix_table = PrefixCodeTable::from(&data[n + 4..n + m + 4]);
 
-        Ok(Header{ filename, prefix_table })
+        Ok(Header {
+            filename,
+            prefix_table,
+        })
     }
 }
 
@@ -69,7 +72,7 @@ impl From<&Header> for Vec<u8> {
         let mut table_data = Vec::<u8>::from(&hdr.prefix_table);
         let m = table_data.len();
         data.push(((m & 0xff00) >> 8) as u8);
-        data.push(((m & 0x00ff)) as u8);
+        data.push((m & 0x00ff) as u8);
         data.append(&mut table_data);
 
         data
@@ -89,20 +92,11 @@ mod tests {
         let output: Vec<u8> = Vec::from(&header);
         assert_eq!(
             vec![
-                FILE_CONST,
-                0,
-                0, 16,
-                'e' as u8, 0u8,
-                'u' as u8, 4u8,
-                'd' as u8, 5u8,
-                'l' as u8, 6u8,
-                'c' as u8, 14u8,
-                'm' as u8, 31u8,
-                'z' as u8, 60u8,
-                'k' as u8, 61u8,
+                FILE_CONST, 0, 0, 16, 'e' as u8, 0u8, 'u' as u8, 4u8, 'd' as u8, 5u8, 'l' as u8,
+                6u8, 'c' as u8, 14u8, 'm' as u8, 31u8, 'z' as u8, 60u8, 'k' as u8, 61u8,
             ],
             output
-            );
+        );
     }
 
     #[test]
