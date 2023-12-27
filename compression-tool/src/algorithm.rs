@@ -348,12 +348,10 @@ impl From<&[u8]> for PrefixCodeTable {
     }
 }
 
-impl From<PrefixCodeTable> for Vec<u8> {
-    fn from(table: PrefixCodeTable) -> Vec<u8> {
-        println!("{table:?}");
+impl From<&PrefixCodeTable> for Vec<u8> {
+    fn from(table: &PrefixCodeTable) -> Vec<u8> {
         let mut data = Vec::new();
         for entry in table.iter() {
-            println!("{entry:?}");
             data.push(entry.letter as u8);
             data.push(entry.code);
         }
@@ -402,7 +400,7 @@ mod tests {
     #[test]
     fn pfc_to_vec() {
         let table = crate::tests::table_opendsa();
-        let data: Vec<u8> = table.clone().into();
+        let data = Vec::<u8>::from(&table);
         assert_eq!(
             vec![
                 'e' as u8, 0u8,
@@ -421,7 +419,7 @@ mod tests {
     #[test]
     fn pfc_to_vec_and_back() {
         let table = crate::tests::table_opendsa();
-        let data: Vec<u8> = table.clone().into();
+        let data = Vec::<u8>::from(&table);
         let result = PrefixCodeTable::from(&data[..]);
         assert_eq!(table, result);
     }
