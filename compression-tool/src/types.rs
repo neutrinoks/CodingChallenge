@@ -22,9 +22,9 @@ pub const FILE_CONST: u8 = 23;
 #[derive(Debug, PartialEq)]
 pub struct Header {
     /// (Optional) specified filename.
-    filename: String,
+    pub filename: String,
     /// The prefix code table.
-    prefix_table: PrefixCodeTable,
+    pub prefix_table: PrefixCodeTable,
 }
 
 impl TryFrom<&[u8]> for Header {
@@ -120,6 +120,18 @@ mod tests {
 
     #[test]
     fn write_and_read_again() {
-        todo!()
+        let fname = "testfile.cpd";
+        let header = Header {
+            filename: String::new(),
+            prefix_table: crate::tests::table_opendsa(),
+        };
+        let data: Vec<u8> = Vec::from(&header);
+        std::fs::write(fname, &data[..]).expect("file writing failed");
+
+        let data: Vec<u8> = std::fs::read(fname).expect("file read failed");
+        std::fs::remove_file(fname).unwrap();
+        let result = Header::try_from(&data[..]).expect("Header::try_from failed");
+
+        assert_eq!(header, result);
     }
 }

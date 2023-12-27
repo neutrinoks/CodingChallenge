@@ -41,10 +41,12 @@ pub fn compression_tool(input: CtInput) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::Header;
 
     pub(crate) fn testfile(name: &str) -> CtInput {
         let args = crate::command::CtArgs {
-            filename: name.to_string(),
+            source: name.to_string(),
+            filename: None,
         };
         CtInput::try_from(args).expect(&format!("testfile/expected: {}", name))
     }
@@ -151,7 +153,18 @@ mod tests {
 
     #[test]
     fn step_4() {
-        todo!();
+        let fname = "testfile.cpd";
+        let header = Header {
+            filename: String::new(),
+            prefix_table: crate::tests::table_opendsa(),
+        };
+        let data: Vec<u8> = Vec::from(&header);
+        std::fs::write(fname, &data[..]).expect("file writing failed");
+
+        let data: Vec<u8> = std::fs::read(fname).expect("file read failed");
+        let result = Header::try_from(&data[..]).expect("Header::try_from failed");
+
+        assert_eq!(header, result);
     }
 
     #[test]

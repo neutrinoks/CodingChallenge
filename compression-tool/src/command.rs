@@ -6,6 +6,7 @@ use clap::Parser;
 #[derive(Debug)]
 pub struct CtInput {
     pub content: String,
+    pub filename: Option<String>,
 }
 
 impl CtInput {
@@ -40,7 +41,8 @@ impl TryFrom<CtArgs> for CtInput {
 
     fn try_from(args: CtArgs) -> Result<CtInput, Self::Error> {
         Ok(CtInput {
-            content: std::fs::read_to_string(args.filename)?,
+            content: std::fs::read_to_string(args.source)?,
+            filename: args.filename,
         })
     }
 }
@@ -48,6 +50,10 @@ impl TryFrom<CtArgs> for CtInput {
 #[derive(Debug, Parser)]
 #[clap(author, version, about)]
 pub struct CtArgs {
+    /// Name of file to be compressed.
+    #[clap(long)]
+    pub source: String,
+    /// Optional output filename, after decompressing the compressed file.
     #[clap(long, action)]
-    pub filename: String,
+    pub filename: Option<String>,
 }
