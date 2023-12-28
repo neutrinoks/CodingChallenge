@@ -1,8 +1,8 @@
 [package]
 name = "ccwc"
 version = "0.2.0"
-edition = "2021"
-authors = ["Michael Eberhardt <github@michael-eberhardt.de>"]
+edition.workspace = true
+authors.workspace = true
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }

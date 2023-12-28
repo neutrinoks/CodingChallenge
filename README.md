@@ -15,4 +15,3 @@ This is my personal repository for participating on some coding challenges from 
 - [ ] Grep
 - [ ] Uniq Tool
 - [ ] Web Server
-- ...

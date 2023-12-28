@@ -1,10 +1,10 @@
 //! Just a main for to create a binary out of this...
 
-use ccct::command::CtInput;
+use cccompress::command::CtInput;
 
-fn main() -> ccct::Result<()> {
+fn main() -> cccompress::Result<()> {
     let args = CtInput::parse_input()?;
-    let cli_out = ccct::compression_tool(args)?;
+    let cli_out = cccompress::compression_tool(args)?;
     println!("{}", cli_out);
     Ok(())
 }

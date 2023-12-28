@@ -1,8 +1,8 @@
 [package]
-name = "json-parser"
+name = "ccjparse"
 version = "0.1.0"
-edition = "2021"
-authors = ["Michael Eberhardt <github@michael-eberhardt.de>"]
+edition.workspace = true
+authors.workspace = true
 
 [dependencies]
 totems = "0.2"
