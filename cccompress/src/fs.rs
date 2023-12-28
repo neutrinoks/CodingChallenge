@@ -98,7 +98,7 @@ mod tests {
         let bytes_wr = write(&fname, &header).expect("write() failed");
         assert!(std::path::Path::new(fname).exists());
 
-        let mut res_hdr = Header::new();
+        let mut res_hdr = Header::default();
         let bytes_rd = read(&fname, &mut res_hdr).expect("read() failed");
         assert_eq!(bytes_wr, bytes_rd);
         assert_eq!(header, res_hdr);

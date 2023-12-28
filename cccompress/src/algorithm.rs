@@ -278,12 +278,12 @@ fn count_bits(code: u8) -> usize {
 pub struct PrefixCodeTable(pub Vec<PrefixCodeEntry>);
 
 impl<'a> PrefixCodeTable {
-    pub fn new() -> PrefixCodeTable {
-        PrefixCodeTable(Vec::new())
+    pub fn get_by_char(&'a self, c: char) -> Option<&'a PrefixCodeEntry> {
+        self.0.iter().find(|&e| e.letter == c)
     }
 
-    pub fn get(&'a self, c: char) -> Option<&'a PrefixCodeEntry> {
-        self.0.iter().find(|&e| e.letter == c)
+    pub fn get_by_code(&'a self, c: u8) -> Option<&'a PrefixCodeEntry> {
+        self.0.iter().find(|&e| e.code == c)
     }
 
     pub fn iter(&'a self) -> PrefixCodeTableIter<'a> {
@@ -291,6 +291,60 @@ impl<'a> PrefixCodeTable {
             table: &self.0,
             idx: 0,
         }
+    }
+
+    pub fn code(&self, c: char) -> Option<u8> {
+        self.get_by_char(c).map(|e| e.code)
+    }
+
+    pub fn letter(&self, c: u8) -> Option<char> {
+        self.get_by_code(c).map(|e| e.letter)
+    }
+
+    pub fn text2stream(&self, text: &str) -> crate::Result<Vec<u8>> {
+        let mut stream: Vec<u8> = vec![0];
+        let mut cidx = 0;
+        let mut bidx = 0;
+
+        for c in text.chars() {
+            // let e = self.get_by_char(c).ok_or::<std::error::Error>(format!("no entry with letter '{}'", c).into())?;
+            let e = if let Some(e) = self.get_by_char(c) {
+                e
+            } else {
+                return Err(format!("no entry with letter '{}'", c).into())
+            };
+            let rb = 8 - bidx;
+
+            stream[cidx] |= e.code << bidx;
+            if e.bits == rb {
+                cidx += 1;
+                stream.push(0);
+            } else if e.bits > rb {
+                cidx += 1;
+                bidx = e.bits - rb;
+                stream.push(0);
+                stream[cidx] |= e.code >> rb;
+            } else {
+                bidx += e.bits;
+            }
+        }
+
+        if let Some(c) = stream.last() {
+            if *c == 0 {
+                stream.pop();
+            }
+        }
+        Ok(stream)
+    }
+
+    pub fn stream2text(&self, _stream: &[u8]) -> String {
+        todo!();
+    }
+}
+
+impl Default for PrefixCodeTable {
+    fn default() -> PrefixCodeTable {
+        PrefixCodeTable(Vec::new())
     }
 }
 

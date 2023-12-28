@@ -25,11 +25,11 @@ pub struct Header {
     pub data_bytes: u32,
 }
 
-impl Header {
-    pub fn new() -> Header {
+impl Default for Header {
+    fn default() -> Header {
         Header{
             filename: String::new(),
-            prefix_table: PrefixCodeTable::new(),
+            prefix_table: PrefixCodeTable::default(),
             data_bytes: 0,
         }
     }

@@ -134,21 +134,21 @@ mod tests {
         let tree = create_huffman_tree(spec).expect("create_huffman_tree failed");
         let prefix_table = create_prefix_table(&tree);
 
-        let result = prefix_table.get('c').expect("no entry 'c' found");
+        let result = prefix_table.get_by_char('c').expect("no entry 'c' found");
         assert_eq!(*result, PrefixCodeEntry::test('c', 14, 4));
-        let result = prefix_table.get('d').expect("no entry 'd' found");
+        let result = prefix_table.get_by_char('d').expect("no entry 'd' found");
         assert_eq!(*result, PrefixCodeEntry::test('d', 5, 3));
-        let result = prefix_table.get('e').expect("no entry 'e' found");
+        let result = prefix_table.get_by_char('e').expect("no entry 'e' found");
         assert_eq!(*result, PrefixCodeEntry::test('e', 0, 1));
-        let result = prefix_table.get('k').expect("no entry 'k' found");
+        let result = prefix_table.get_by_char('k').expect("no entry 'k' found");
         assert_eq!(*result, PrefixCodeEntry::test('k', 61, 6));
-        let result = prefix_table.get('l').expect("no entry 'l' found");
+        let result = prefix_table.get_by_char('l').expect("no entry 'l' found");
         assert_eq!(*result, PrefixCodeEntry::test('l', 6, 3));
-        let result = prefix_table.get('m').expect("no entry 'm' found");
+        let result = prefix_table.get_by_char('m').expect("no entry 'm' found");
         assert_eq!(*result, PrefixCodeEntry::test('m', 31, 5));
-        let result = prefix_table.get('u').expect("no entry 'u' found");
+        let result = prefix_table.get_by_char('u').expect("no entry 'u' found");
         assert_eq!(*result, PrefixCodeEntry::test('u', 4, 3));
-        let result = prefix_table.get('z').expect("no entry 'z' found");
+        let result = prefix_table.get_by_char('z').expect("no entry 'z' found");
         assert_eq!(*result, PrefixCodeEntry::test('z', 60, 6));
     }
 
@@ -171,6 +171,18 @@ mod tests {
 
     #[test]
     fn step_5() {
+        todo!();
+        // translate input text into byte-stream by using PrefixCodeTable
+    }
+
+    #[test]
+    fn step_6() {
+        todo!();
+        // read in a header from a file and decode the byte-stream back to text.
+    }
+
+    #[test]
+    fn step_7() {
         todo!();
     }
 }
