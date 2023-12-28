@@ -278,13 +278,12 @@ fn count_bits(code: u8) -> usize {
 pub struct PrefixCodeTable(pub Vec<PrefixCodeEntry>);
 
 impl<'a> PrefixCodeTable {
+    pub fn new() -> PrefixCodeTable {
+        PrefixCodeTable(Vec::new())
+    }
+
     pub fn get(&'a self, c: char) -> Option<&'a PrefixCodeEntry> {
-        for e in self.0.iter() {
-            if e.letter == c {
-                return Some(e);
-            }
-        }
-        None
+        self.0.iter().find(|&e| e.letter == c)
     }
 
     pub fn iter(&'a self) -> PrefixCodeTableIter<'a> {
@@ -393,7 +392,7 @@ mod tests {
     }
 
     #[test]
-    fn pfc_to_vec() {
+    fn pfc_to_bytes() {
         let table = crate::tests::table_opendsa();
         let data = Vec::<u8>::from(&table);
         assert_eq!(
@@ -406,7 +405,7 @@ mod tests {
     }
 
     #[test]
-    fn pfc_to_vec_and_back() {
+    fn pfc_to_bytes_and_back() {
         let table = crate::tests::table_opendsa();
         let data = Vec::<u8>::from(&table);
         let result = PrefixCodeTable::from(&data[..]);

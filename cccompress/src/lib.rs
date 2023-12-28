@@ -2,6 +2,7 @@
 
 pub mod algorithm;
 pub mod command;
+pub mod fs;
 pub mod types;
 
 use algorithm::*;
@@ -157,6 +158,7 @@ mod tests {
         let header = Header {
             filename: String::new(),
             prefix_table: crate::tests::table_opendsa(),
+            data_bytes: 0,
         };
         let data: Vec<u8> = Vec::from(&header);
         std::fs::write(fname, &data[..]).expect("file writing failed");
