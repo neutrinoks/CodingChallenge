@@ -4,8 +4,8 @@ This is my personal repository for participating on some coding challenges from 
 
 ### Challenges (Extract)
 
-- [X] *WC Tool (ccwc)*
-- [X] *JSON Parser* (ccjparse)*
+- [X] **WC Tool (ccwc)**
+- [X] **JSON Parser (ccjparse)**
 - [ ] _Compression Tool (cccompress)_
 - [ ] Cut Tool
 - [ ] Load Balancer
