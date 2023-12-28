@@ -1,6 +1,6 @@
 //! Just a main for to create a binary out of this...
 
-use cccompress::command::CtInput;
+use cccompress::CtInput;
 
 fn main() -> cccompress::Result<()> {
     let args = CtInput::parse_input()?;

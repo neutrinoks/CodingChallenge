@@ -465,4 +465,18 @@ mod tests {
         let result = PrefixCodeTable::from(&data[..]);
         assert_eq!(table, result);
     }
+
+    #[test]
+    fn pfc_text2stream() {
+        let table = crate::tests::table_opendsa();
+        let stream = table.text2stream("lude").expect("PrefixCodeTable::text2stream() failed");
+        // "lude" -> 6, 4, 5, 0
+        // "lude" -> 110, 100, 101, 0
+        // "lude" -> 01 0100 1011
+        println!("{stream:?}");
+        for b in stream.iter() {
+            println!("{:#b}", b);
+        }
+        todo!();
+    }
 }

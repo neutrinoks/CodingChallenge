@@ -1,13 +1,14 @@
 //! Library with functionality of compression-tool.
 
-pub mod algorithm;
-pub mod command;
-pub mod fs;
-pub mod types;
+mod algorithm;
+mod bitstream;
+mod command;
+mod fs;
+mod types;
 
 use algorithm::*;
-use command::CtInput;
 
+pub use command::CtInput;
 pub use types::Result;
 
 /// One of the internal development steps and functions to be tested.
@@ -36,6 +37,7 @@ pub fn compression_tool(input: CtInput) -> Result<String> {
     for i in 0..20 {
         output.push_str(&format!("{}\n", table[i]));
     }
+
     Ok(output)
 }
 
