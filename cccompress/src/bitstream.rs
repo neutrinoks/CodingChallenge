@@ -5,6 +5,8 @@
 pub struct BitStreamReader<'s> {
     /// The true data stream based on `Vec<u8>`.
     stream: &'s [u8],
+    /// Number of unused bits.
+    last_bit: usize,
     /// A bit-index.
     bidx: usize,
     /// A byte-index (char).
@@ -12,11 +14,32 @@ pub struct BitStreamReader<'s> {
 }
 
 impl<'s> BitStreamReader<'s> {
-    pub fn new(stream: &'s [u8]) -> BitStreamReader<'s> {
+    pub fn new(stream: &'s [u8], uu_bits: u8) -> BitStreamReader<'s> {
         BitStreamReader {
             stream,
+            last_bit: 8 - (uu_bits as usize),
             bidx: 0,
             cidx: 0,
+        }
+    }
+
+    fn inc_counter(&mut self) {
+        self.bidx += 1;
+        if self.bidx == 8 {
+            self.bidx = 0;
+            self.cidx += 1;
+        }
+    }
+
+    fn still_going(&self) -> bool {
+        if self.cidx < self.stream.len() {
+            if self.cidx + 1 == self.stream.len() {
+                self.bidx < self.last_bit
+            } else {
+                true
+            }
+        } else {
+            false
         }
     }
 }
@@ -25,13 +48,9 @@ impl<'r> Iterator for BitStreamReader<'r> {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.cidx < self.stream.len() && self.bidx < 8 {
+        if self.still_going() {
             let result = (self.stream[self.cidx] >> self.bidx) & 1u8;
-            self.bidx += 1;
-            if self.bidx == 8 {
-                self.bidx = 0;
-                self.cidx += 1;
-            }
+            self.inc_counter();
             Some(result)
         } else {
             None
@@ -103,21 +122,23 @@ pub fn to_bits(code: u8) -> [u8; 8] {
 #[derive(Debug)]
 pub struct BitBuffer {
     val: u8,
-    idx: usize,
+    cnt: usize,
 }
 
 impl BitBuffer {
     pub fn new() -> BitBuffer {
-        BitBuffer{val: 0, idx: 0}
+        BitBuffer{val: 0, cnt: 0}
     }
 
     pub fn reset(&mut self) {
         self.val = 0;
-        self.idx = 0;
+        self.cnt = 0;
     }
 
     pub fn add_bit(&mut self, bit: u8) {
-        self.val |= bit << self.idx;
+        self.cnt += 1;
+        assert!(self.cnt <= 8);
+        self.val = (self.val << 1) | bit;
     }
 }
 
@@ -136,7 +157,7 @@ mod tests {
     #[test]
     fn bitstreamreader_simple() {
         let stream: Vec<u8> = vec![5, 6];
-        let mut reader = BitStreamReader::new(&stream);
+        let mut reader = BitStreamReader::new(&stream, 5u8);
 
         assert_eq!(reader.next(), Some(1));
         assert_eq!(reader.next(), Some(0));
@@ -150,12 +171,6 @@ mod tests {
         assert_eq!(reader.next(), Some(0));
         assert_eq!(reader.next(), Some(1));
         assert_eq!(reader.next(), Some(1));
-        assert_eq!(reader.next(), Some(0));
-        assert_eq!(reader.next(), Some(0));
-        assert_eq!(reader.next(), Some(0));
-        assert_eq!(reader.next(), Some(0));
-        assert_eq!(reader.next(), Some(0));
-
         assert_eq!(reader.next(), None);
     }
 
@@ -179,7 +194,7 @@ mod tests {
         writer.add_bit(0);
         writer.add_bit(0);
         writer.add_bit(1);
-        // writer.add_bit(0);
+        // one bit missing
 
         let (stream, uu_bits) = writer.finalize();
         assert_eq!(stream, vec![15u8, 64u8]);

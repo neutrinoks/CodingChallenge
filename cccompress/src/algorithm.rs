@@ -65,15 +65,23 @@ impl From<CtTreeNode> for CtBinaryTree {
     }
 }
 
+// fn dbg(v_cs: &Vec<CtTreeNode>) {
+//     print!("[");
+//     v_cs.iter().for_each(|n| print!(" {n} "));
+//     println!("]");
+// }
+
 impl TryFrom<CharSpectrum> for CtBinaryTree {
     type Error = String;
 
-    fn try_from(cs: CharSpectrum) -> std::result::Result<CtBinaryTree, Self::Error> {
+    fn try_from(mut cs: CharSpectrum) -> std::result::Result<CtBinaryTree, Self::Error> {
         // Step 1, convert each element from (char, usize) to CtTreeNode.
         if cs.0.is_empty() {
             return Err("CtBinaryTree::from(CharSpectrum) - empty CharSpectrum!".into());
         }
+        cs.sort();
         let mut v_cs: Vec<CtTreeNode> = cs.0.into_iter().map(CtTreeNode::from).collect();
+        // dbg(&v_cs);
 
         // Step 2, iterate over array of nodes, build tree-nodes, until only one node is left.
         while v_cs.len() > 1 {
@@ -82,6 +90,7 @@ impl TryFrom<CharSpectrum> for CtBinaryTree {
             let n_node = CtTreeNode::hierarchy(left, right);
             let pos = n_node.find_position_in(&v_cs);
             v_cs.insert(pos, n_node);
+            // dbg(&v_cs);
         }
 
         Ok(CtBinaryTree::from(v_cs.remove(0)))
@@ -199,7 +208,7 @@ impl CtTreeNode {
         let freq = self.frequency();
         let mut n_el = 0;
         for node in node_vec.iter() {
-            if freq > node.frequency() {
+            if freq >= node.frequency() {
                 n_el += 1;
             } else {
                 break;
@@ -231,6 +240,15 @@ impl From<(char, usize)> for CtTreeNode {
     }
 }
 
+impl std::fmt::Display for CtTreeNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        match self {
+            CtTreeNode::Bin(c, r) => write!(f, "CtTreeNode::Bin({},{})", c, r),
+            CtTreeNode::Hierarchy(r, _, _) => write!(f, "CtTreeNode({})", r),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PrefixCodeEntry {
     /// Given letter, e.g. 'a'.
@@ -249,11 +267,6 @@ impl PrefixCodeEntry {
             code,
             bits: count_bits(code),
         }
-    }
-
-    #[cfg(test)]
-    pub fn test(letter: char, code: u8, bits: usize) -> PrefixCodeEntry {
-        PrefixCodeEntry { letter, code, bits }
     }
 }
 
@@ -279,11 +292,11 @@ fn count_bits(code: u8) -> usize {
 pub struct PrefixCodeTable(pub Vec<PrefixCodeEntry>);
 
 impl<'a> PrefixCodeTable {
-    pub fn get_by_char(&'a self, c: char) -> Option<&'a PrefixCodeEntry> {
+    pub fn entry_by_char(&'a self, c: char) -> Option<&'a PrefixCodeEntry> {
         self.0.iter().find(|&e| e.letter == c)
     }
 
-    pub fn get_by_code(&'a self, c: u8) -> Option<&'a PrefixCodeEntry> {
+    pub fn entry_by_code(&'a self, c: u8) -> Option<&'a PrefixCodeEntry> {
         self.0.iter().find(|&e| e.code == c)
     }
 
@@ -295,18 +308,18 @@ impl<'a> PrefixCodeTable {
     }
 
     pub fn code(&self, c: char) -> Option<u8> {
-        self.get_by_char(c).map(|e| e.code)
+        self.entry_by_char(c).map(|e| e.code)
     }
 
     pub fn letter(&self, c: u8) -> Option<char> {
-        self.get_by_code(c).map(|e| e.letter)
+        self.entry_by_code(c).map(|e| e.letter)
     }
 
     pub fn text2stream(&self, text: &str) -> crate::Result<(Vec<u8>, u8)> {
         let mut stream = BitStreamWriter::new();
 
         for c in text.chars() {
-            let e = if let Some(e) = self.get_by_char(c) {
+            let e = if let Some(e) = self.entry_by_char(c) {
                 e
             } else {
                 return Err(format!("no entry with letter '{}'", c).into());
@@ -321,20 +334,31 @@ impl<'a> PrefixCodeTable {
         Ok(stream.finalize())
     }
 
-    pub fn stream2text(&self, stream: &[u8]) -> String {
-        let reader = BitStreamReader::new(stream);
+    pub fn stream2text(&self, stream: &[u8], uu_bits: u8) -> String {
+        let reader = BitStreamReader::new(stream, uu_bits);
         let mut bitbuf = BitBuffer::new();
         let mut text = String::new();
 
         for bit in reader {
             bitbuf.add_bit(bit);
-            if let Some(e) = self.get_by_code(*bitbuf) {
+            if let Some(e) = self.entry_by_code(*bitbuf) {
                 text.push(e.letter);
                 bitbuf.reset();
             }
         }
 
         text
+    }
+
+    pub fn debug_entries(&self, n: usize) {
+        println!("PrefixCodeTable, Extract");
+        let mut n = n;
+        if n > self.0.len() {
+            n = self.0.len();
+        }
+        for i in 0..n {
+            println!("| {} | {} |", self.0[i].letter, self.0[i].code);
+        }
     }
 }
 
@@ -419,7 +443,7 @@ mod tests {
     use super::{PrefixCodeEntry, PrefixCodeTable};
 
     #[test]
-    fn pfc_iter() {
+    fn pfct_iter() {
         let table = crate::tests::table_opendsa();
         let mut table_iter = table.iter();
         assert_eq!(table_iter.next(), Some(&PrefixCodeEntry::new('e', 0)));
@@ -433,7 +457,7 @@ mod tests {
     }
 
     #[test]
-    fn pfc_to_bytes() {
+    fn pfct_to_bytes() {
         let table = crate::tests::table_opendsa();
         let data = Vec::<u8>::from(&table);
         assert_eq!(
@@ -446,7 +470,7 @@ mod tests {
     }
 
     #[test]
-    fn pfc_to_bytes_and_back() {
+    fn pfct_to_bytes_and_back() {
         let table = crate::tests::table_opendsa();
         let data = Vec::<u8>::from(&table);
         let result = PrefixCodeTable::from(&data[..]);
@@ -454,18 +478,25 @@ mod tests {
     }
 
     #[test]
-    fn pfc_text2stream() {
+    fn pfct_text2stream() {
         let table = crate::tests::table_opendsa();
         let (stream, uu_bits) = table
             .text2stream("lude")
             .expect("PrefixCodeTable::text2stream() failed");
         // "lude" -> 6, 4, 5, 0 -> 110, 100, 101, 0 -> 0101001011
         // "lude" -> 01 0100.1011 -> 75, 1
-        println!("{stream:?}");
-        for b in stream.iter() {
-            println!("{:#b}", b);
-        }
         assert_eq!(stream, vec![75u8, 1u8]);
         assert_eq!(uu_bits, 6);
+    }
+
+    #[test]
+    fn pfct_text2stream_and_back() {
+        let reftext = "ludecluemzk";
+        let table = crate::tests::table_opendsa();
+        let (stream, uu_bits) = table
+            .text2stream(&reftext)
+            .expect("PrefixCodeTable::text2stream() failed");
+        let text = table.stream2text(&stream[..], uu_bits);
+        assert_eq!(reftext, text.as_str());
     }
 }

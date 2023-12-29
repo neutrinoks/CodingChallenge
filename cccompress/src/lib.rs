@@ -28,6 +28,12 @@ fn create_prefix_table(tree: CtBinaryTree) -> PrefixCodeTable {
     PrefixCodeTable::from(&tree)
 }
 
+fn pfct_from_text(input: &str) -> Result<PrefixCodeTable> {
+    let spec = frequency_analysis(input)?;
+    let tree = create_huffman_tree(spec)?;
+    Ok(create_prefix_table(tree))
+}
+
 /// Encoding method to transform text into encoded, compressed bit stream.
 fn compress(table: PrefixCodeTable, text: &str) -> Result<CompressedData> {
     let (data, uu_bits) = table.text2stream(text)?;
@@ -44,7 +50,7 @@ fn compress(table: PrefixCodeTable, text: &str) -> Result<CompressedData> {
 
 /// Decoding method to transform encoded, compressed bit stream back to text.
 fn decompress(cdata: &CompressedData) -> String {
-    cdata.header.prefix_table.stream2text(&cdata.data[..])
+    cdata.header.prefix_table.stream2text(&cdata.data[..], cdata.header.unused_bits)
 }
 
 /// Main entry method for compression-tool use case, to be able to separate the code into library
@@ -53,9 +59,7 @@ pub fn compression_tool(directive: CtDirective) -> Result<String> {
     Ok(match directive {
         CtDirective::Pack(source, of) => {
             let content = std::fs::read_to_string(&source)?;
-            let spectrum = frequency_analysis(&content)?;
-            let h_tree = create_huffman_tree(spectrum)?;
-            let table = create_prefix_table(h_tree);
+            let table = pfct_from_text(&content)?;
             let fname = if let Some(ofname) = of {
                 ofname
             } else {
@@ -125,6 +129,22 @@ mod tests {
     }
 
     #[test]
+    fn prefix_code_table_test() {
+        let input = "abbcccddddeeeeeffffff";
+        let spec = frequency_analysis(&input).expect("frequency_analysis() failed");
+        let tree = create_huffman_tree(spec).expect("create_huffman_tree() failed");
+        let table = create_prefix_table(tree);
+        // table.debug_entries(6);
+
+        assert_eq!(table[0], PrefixCodeEntry::new('f', 0));
+        assert_eq!(table[1], PrefixCodeEntry::new('e', 0));
+        assert_eq!(table[2], PrefixCodeEntry::new('d', 0));
+        assert_eq!(table[3], PrefixCodeEntry::new('c', 0));
+        assert_eq!(table[4], PrefixCodeEntry::new('b', 0));
+        assert_eq!(table[5], PrefixCodeEntry::new('a', 0));
+    }
+
+    #[test]
     fn step_1() {
         let result = spec_135_0();
         let t = result
@@ -170,22 +190,22 @@ mod tests {
         let tree = create_huffman_tree(spec).expect("create_huffman_tree failed");
         let prefix_table = create_prefix_table(tree);
 
-        let result = prefix_table.get_by_char('c').expect("no entry 'c' found");
-        assert_eq!(*result, PrefixCodeEntry::test('c', 14, 4));
-        let result = prefix_table.get_by_char('d').expect("no entry 'd' found");
-        assert_eq!(*result, PrefixCodeEntry::test('d', 5, 3));
-        let result = prefix_table.get_by_char('e').expect("no entry 'e' found");
-        assert_eq!(*result, PrefixCodeEntry::test('e', 0, 1));
-        let result = prefix_table.get_by_char('k').expect("no entry 'k' found");
-        assert_eq!(*result, PrefixCodeEntry::test('k', 61, 6));
-        let result = prefix_table.get_by_char('l').expect("no entry 'l' found");
-        assert_eq!(*result, PrefixCodeEntry::test('l', 6, 3));
-        let result = prefix_table.get_by_char('m').expect("no entry 'm' found");
-        assert_eq!(*result, PrefixCodeEntry::test('m', 31, 5));
-        let result = prefix_table.get_by_char('u').expect("no entry 'u' found");
-        assert_eq!(*result, PrefixCodeEntry::test('u', 4, 3));
-        let result = prefix_table.get_by_char('z').expect("no entry 'z' found");
-        assert_eq!(*result, PrefixCodeEntry::test('z', 60, 6));
+        let result = prefix_table.entry_by_char('c').expect("no entry 'c' found");
+        assert_eq!(*result, PrefixCodeEntry::new('c', 14));
+        let result = prefix_table.entry_by_char('d').expect("no entry 'd' found");
+        assert_eq!(*result, PrefixCodeEntry::new('d', 5));
+        let result = prefix_table.entry_by_char('e').expect("no entry 'e' found");
+        assert_eq!(*result, PrefixCodeEntry::new('e', 0));
+        let result = prefix_table.entry_by_char('k').expect("no entry 'k' found");
+        assert_eq!(*result, PrefixCodeEntry::new('k', 61));
+        let result = prefix_table.entry_by_char('l').expect("no entry 'l' found");
+        assert_eq!(*result, PrefixCodeEntry::new('l', 6));
+        let result = prefix_table.entry_by_char('m').expect("no entry 'm' found");
+        assert_eq!(*result, PrefixCodeEntry::new('m', 31));
+        let result = prefix_table.entry_by_char('u').expect("no entry 'u' found");
+        assert_eq!(*result, PrefixCodeEntry::new('u', 4));
+        let result = prefix_table.entry_by_char('z').expect("no entry 'z' found");
+        assert_eq!(*result, PrefixCodeEntry::new('z', 60));
     }
 
     #[test]
@@ -201,7 +221,7 @@ mod tests {
         std::fs::write(fname, &data[..]).expect("file writing failed");
 
         let data: Vec<u8> = std::fs::read(fname).expect("file read failed");
-        let result = Header::try_from(&data[..]).expect("Header::try_from failed");
+        let result = Header::from(&data[..]);
 
         assert_eq!(header, result);
         std::fs::remove_file(fname).expect("removing testfile failed");
@@ -210,9 +230,7 @@ mod tests {
     #[test]
     fn step_5() {
         let input = testfile("135-0.txt");
-        let spec = frequency_analysis(&input).expect("frequency_analysis() failed");
-        let tree = create_huffman_tree(spec).expect("create_huffman_tree() failed");
-        let table = create_prefix_table(tree);
+        let table = pfct_from_text(&input).expect("pfct_from_text() failed");
 
         let fname = "135-0.cpd";
         let cdata = compress(table, &input).expect("compress() failed");
@@ -224,8 +242,16 @@ mod tests {
 
     #[test]
     fn step_6() {
-        todo!();
-        // read in a header from a file and decode the byte-stream back to text.
+        // I redefined this step a little on my own, because it does not fit to my style of
+        // development...
+        let input = testfile("loremipsum.txt");
+        let table = pfct_from_text(&input).expect("pfct_from_text() failed");
+        // table.debug_entries(50);
+
+        let cdata = compress(table, &input).expect("compress() failed");
+        let rtext = decompress(&cdata);
+
+        assert_eq!(input, rtext);
     }
 
     #[test]
