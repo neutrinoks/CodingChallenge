@@ -7,6 +7,7 @@ mod fs;
 mod types;
 
 use algorithm::*;
+use types::{CompressedData, Header};
 
 pub use command::CtInput;
 pub use types::Result;
@@ -22,8 +23,27 @@ fn create_huffman_tree(spectrum: CharSpectrum) -> Result<CtBinaryTree> {
 }
 
 /// One of the internal development steps and functions to be tested.
-fn create_prefix_table(tree: &CtBinaryTree) -> PrefixCodeTable {
-    PrefixCodeTable::from(tree)
+fn create_prefix_table(tree: CtBinaryTree) -> PrefixCodeTable {
+    PrefixCodeTable::from(&tree)
+}
+
+/// Encoding method to transform text into encoded, compressed bit stream.
+fn compress(table: PrefixCodeTable, text: &str) -> Result<CompressedData> {
+    let (data, uu_bits) = table.text2stream(text)?;
+    Ok(CompressedData{
+        header: Header{
+            filename: String::new(),
+            prefix_table: table,
+            data_bytes: data.len() as u32,
+            unused_bits: uu_bits,
+        },
+        data,
+    })
+}
+
+/// Decoding method to transform encoded, compressed bit stream back to text.
+fn decompress(cdata: &CompressedData) -> Result<String> {
+    todo!();
 }
 
 /// Main entry method for compression-tool use case, to be able to separate the code into library
@@ -31,7 +51,7 @@ fn create_prefix_table(tree: &CtBinaryTree) -> PrefixCodeTable {
 pub fn compression_tool(input: CtInput) -> Result<String> {
     let spectrum = frequency_analysis(&input)?;
     let h_tree = create_huffman_tree(spectrum)?;
-    let table = create_prefix_table(&h_tree);
+    let table = create_prefix_table(h_tree);
 
     let mut output = "Abstract from the PrefixCodeTable\n".to_string();
     for i in 0..20 {
@@ -85,10 +105,10 @@ mod tests {
         PrefixCodeTable(table)
     }
 
-    // pub(crate) fn table_135_0() -> PrefixCodeTable {
-    //     let tree = create_huffman_tree(spec_135_0()).unwrap();
-    //     create_prefix_table(&tree)
-    // }
+    pub(crate) fn table_135_0() -> PrefixCodeTable {
+        let tree = create_huffman_tree(spec_135_0()).unwrap();
+        create_prefix_table(tree)
+    }
 
     #[test]
     fn step_1() {
@@ -134,7 +154,7 @@ mod tests {
     fn step_3() {
         let spec = spec_opendsa();
         let tree = create_huffman_tree(spec).expect("create_huffman_tree failed");
-        let prefix_table = create_prefix_table(&tree);
+        let prefix_table = create_prefix_table(tree);
 
         let result = prefix_table.get_by_char('c').expect("no entry 'c' found");
         assert_eq!(*result, PrefixCodeEntry::test('c', 14, 4));
@@ -161,6 +181,7 @@ mod tests {
             filename: String::new(),
             prefix_table: crate::tests::table_opendsa(),
             data_bytes: 0,
+            unused_bits: 3,
         };
         let data: Vec<u8> = Vec::from(&header);
         std::fs::write(fname, &data[..]).expect("file writing failed");
@@ -173,8 +194,17 @@ mod tests {
 
     #[test]
     fn step_5() {
-        todo!();
-        // translate input text into byte-stream by using PrefixCodeTable
+        let input = testfile("135-0.txt");
+        let spec = frequency_analysis(&input).expect("frequency_analysis() failed");
+        let tree = create_huffman_tree(spec).expect("create_huffman_tree() failed");
+        let table = create_prefix_table(tree);
+
+        let fname = "135-0.cpd";
+        let cdata = compress(table, &input.content).expect("compress() failed");
+        crate::fs::write(&fname, &cdata).expect("write() failed");
+
+        assert!(std::path::Path::new(fname).exists());
+        std::fs::remove_file(fname).expect("removing testfile failed");
     }
 
     #[test]

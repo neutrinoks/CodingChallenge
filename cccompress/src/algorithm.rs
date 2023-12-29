@@ -2,6 +2,7 @@
 //! which represent milestone date outputs during the development.
 
 use std::{borrow::Borrow, collections::HashMap};
+use crate::bitstream::*;
 
 /// Stores a single frequency-bin, e.g. for the character 'r', how many times 'r' appeared in a
 /// given input stream.
@@ -301,40 +302,23 @@ impl<'a> PrefixCodeTable {
         self.get_by_code(c).map(|e| e.letter)
     }
 
-    pub fn text2stream(&self, text: &str) -> crate::Result<Vec<u8>> {
-        let mut stream: Vec<u8> = vec![0];
-        let mut cidx = 0;
-        let mut bidx = 0;
+    pub fn text2stream(&self, text: &str) -> crate::Result<(Vec<u8>, u8)> {
+        let mut stream = BitStreamWriter::new();
 
         for c in text.chars() {
-            // let e = self.get_by_char(c).ok_or::<std::error::Error>(format!("no entry with letter '{}'", c).into())?;
             let e = if let Some(e) = self.get_by_char(c) {
                 e
             } else {
                 return Err(format!("no entry with letter '{}'", c).into())
             };
-            let rb = 8 - bidx;
 
-            stream[cidx] |= e.code << bidx;
-            if e.bits == rb {
-                cidx += 1;
-                stream.push(0);
-            } else if e.bits > rb {
-                cidx += 1;
-                bidx = e.bits - rb;
-                stream.push(0);
-                stream[cidx] |= e.code >> rb;
-            } else {
-                bidx += e.bits;
+            let bits = to_bits(e.code);
+            for b in bits[0..e.bits].iter().rev() {
+                stream.add_bit(*b);
             }
         }
 
-        if let Some(c) = stream.last() {
-            if *c == 0 {
-                stream.pop();
-            }
-        }
-        Ok(stream)
+        Ok(stream.finalize())
     }
 
     pub fn stream2text(&self, _stream: &[u8]) -> String {
@@ -469,14 +453,14 @@ mod tests {
     #[test]
     fn pfc_text2stream() {
         let table = crate::tests::table_opendsa();
-        let stream = table.text2stream("lude").expect("PrefixCodeTable::text2stream() failed");
-        // "lude" -> 6, 4, 5, 0
-        // "lude" -> 110, 100, 101, 0
-        // "lude" -> 01 0100 1011
+        let (stream, uu_bits) = table.text2stream("lude").expect("PrefixCodeTable::text2stream() failed");
+        // "lude" -> 6, 4, 5, 0 -> 110, 100, 101, 0 -> 0101001011
+        // "lude" -> 01 0100.1011 -> 75, 1
         println!("{stream:?}");
         for b in stream.iter() {
             println!("{:#b}", b);
         }
-        todo!();
+        assert_eq!(stream, vec![75u8, 1u8]);
+        assert_eq!(uu_bits, 6);
     }
 }

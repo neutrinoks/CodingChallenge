@@ -25,7 +25,6 @@ impl<'s> BitStreamReader<'s> {
     }
 }
 
-
 impl<'r> Iterator for BitStreamReader<'r> {
     type Item = u8;
 
@@ -75,12 +74,12 @@ impl<'s> BitStreamWriter {
         }
     }
 
-    pub fn finalize(mut self) -> (Vec<u8>, usize) {
+    pub fn finalize(mut self) -> (Vec<u8>, u8) {
         let uu_bits = if self.bidx == 0 {
             self.stream.pop();
             0
         } else {
-            8 - self.bidx
+            8 - (self.bidx as u8)
         };
         (self.stream, uu_bits)
     }
@@ -90,6 +89,19 @@ impl Default for BitStreamWriter {
     fn default() -> BitStreamWriter {
         BitStreamWriter::new()
     }
+}
+
+pub fn to_bits(code: u8) -> [u8; 8] {
+    [
+        code & 1u8,
+        (code >> 1) & 1u8,
+        (code >> 2) & 1u8,
+        (code >> 3) & 1u8,
+        (code >> 4) & 1u8,
+        (code >> 5) & 1u8,
+        (code >> 6) & 1u8,
+        (code >> 7) & 1u8,
+    ]
 }
 
 #[cfg(test)]
@@ -118,6 +130,8 @@ mod tests {
         assert_eq!(reader.next(), Some(0));
         assert_eq!(reader.next(), Some(0));
         assert_eq!(reader.next(), Some(0));
+
+        assert_eq!(reader.next(), None);
     }
 
     #[test]

@@ -25,8 +25,12 @@ fn check_filename(name: &str) -> Result<()> {
 }
 
 /// TODO
-pub fn write(filename: &str, header: &Header) -> Result<usize> {
+pub fn write(filename: &str, header: &Header, data: &[u8]) -> Result<usize> {
     check_filename(filename)?;
+    if data.len() != (header.data_bytes as usize) {
+        return Err(format!("write: header expects {} bytes, but data has {}",
+                           header.data_bytes, data.len()).into())
+    }
 
     let mut bytes = 0;
     let mut file = File::create(filename)?;
@@ -34,18 +38,15 @@ pub fn write(filename: &str, header: &Header) -> Result<usize> {
 
     // Initially we write the FILE_CONST as identifier of the correct file format.
     buffer.push(FILE_CONST);
-    // bytes += file.write(&FILE_CONST)?;
 
     // Followed by the length of the header (LE) and the header itself.
     let mut hdr_data = Vec::<u8>::from(header);
     let hdr_len = hdr_data.len() as u32;
-    // bytes += file.write(&hdr_len.to_le_bytes()[..])?;
     hdr_len.to_le_bytes().iter().for_each(|b| buffer.push(*b));
-    // bytes += file.write(&hdr_data[..])?;
     buffer.append(&mut hdr_data);
 
     // Followed by the data content.
-    // TODO
+    buffer.extend_from_slice(data);
 
     bytes += file.write(&buffer[..])?;
     file.flush()?;
@@ -54,7 +55,7 @@ pub fn write(filename: &str, header: &Header) -> Result<usize> {
 }
 
 /// TODO
-pub fn read(filename: &str, header: &mut Header) -> Result<usize> {
+pub fn read(filename: &str, header: &mut Header, data: &mut Vec<u8>) -> Result<usize> {
     check_filename(filename)?;
 
     let file = File::open(filename)?;
@@ -77,7 +78,11 @@ pub fn read(filename: &str, header: &mut Header) -> Result<usize> {
     *header = Header::try_from(&buffer[5..5 + hdr_len])?;
 
     // Same like above...
-    // TODO
+    if (header.data_bytes as usize) != buffer.len() - 5 - hdr_len {
+        return Err(format!("'{filename}' seems to be broken, header expects {} data bytes, but only {} remain",
+                           header.data_bytes, buffer.len() - 5 - hdr_len).into())
+    }
+    data.extend_from_slice(&buffer[5+hdr_len..]);
 
     Ok(bytes)
 }
@@ -92,17 +97,21 @@ mod tests {
         let header = Header {
             filename: "othername.txt".to_string(),
             prefix_table: crate::tests::table_opendsa(),
-            data_bytes: 312,
+            data_bytes: 4,
+            unused_bits: 3,
         };
+        let data: Vec<u8> = vec![1, 2, 3, 4];
 
-        let bytes_wr = write(&fname, &header).expect("write() failed");
+        let bytes_wr = write(&fname, &header, &data[..]).expect("write() failed");
         assert!(std::path::Path::new(fname).exists());
 
         let mut res_hdr = Header::default();
-        let bytes_rd = read(&fname, &mut res_hdr).expect("read() failed");
+        let mut res_dat = Vec::<u8>::new();
+        let bytes_rd = read(&fname, &mut res_hdr, &mut res_dat).expect("read() failed");
         assert_eq!(bytes_wr, bytes_rd);
         assert_eq!(header, res_hdr);
+        assert_eq!(data, res_dat);
 
-        std::fs::remove_file(fname).expect("rmoving testfile failed");
+        std::fs::remove_file(fname).expect("removing testfile failed");
     }
 }

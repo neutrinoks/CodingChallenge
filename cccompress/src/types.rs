@@ -15,6 +15,7 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 /// n+1..n+3        (3) number of bytes (m) for the prefix code table as u16 (2 Bytes)
 /// n+3..n+m+3      (4) prefix code table
 /// n+m+3..n+m+8    (5) 4 bytes u32, number of bytes of encoded data content
+/// n+m+8           (6) number of unused bits in the last byte
 #[derive(Debug, PartialEq)]
 pub struct Header {
     /// (Optional) specified filename.
@@ -23,6 +24,8 @@ pub struct Header {
     pub prefix_table: PrefixCodeTable,
     /// Number of bytes for the encoded data.
     pub data_bytes: u32,
+    /// Number of unused bits at the last byte.
+    pub unused_bits: u8,
 }
 
 impl Default for Header {
@@ -31,6 +34,7 @@ impl Default for Header {
             filename: String::new(),
             prefix_table: PrefixCodeTable::default(),
             data_bytes: 0,
+            unused_bits: 0,
         }
     }
 }
@@ -55,10 +59,15 @@ impl From<&[u8]> for Header {
         let data_bytes = [data[idx], data[idx + 1], data[idx + 2], data[idx + 3]];
         let data_bytes = u32::from_le_bytes(data_bytes);
 
+        // (6)
+        let idx = idx + 4;
+        let unused_bits = data[idx];
+
         Header {
             filename,
             prefix_table,
             data_bytes,
+            unused_bits,
         }
     }
 }
@@ -90,8 +99,20 @@ impl From<&Header> for Vec<u8> {
         data.push(be_bytes[2]);
         data.push(be_bytes[3]);
 
+        // (6)
+        data.push(hdr.unused_bits);
+
         data
     }
+}
+
+/// TODO
+#[derive(Debug)]
+pub struct CompressedData {
+    /// The header of the compressed file.
+    pub header: Header,
+    /// The data of the compressed file.
+    pub data: Vec<u8>,
 }
 
 #[cfg(test)]
@@ -104,12 +125,13 @@ mod tests {
             filename: String::new(),
             prefix_table: crate::tests::table_opendsa(),
             data_bytes: 1,
+            unused_bits: 4,
         };
         let output = Vec::<u8>::from(&header);
         assert_eq!(
             vec![
                 0, 16, 0, 'e' as u8, 0u8, 'u' as u8, 4u8, 'd' as u8, 5u8, 'l' as u8, 6u8,
-                'c' as u8, 14u8, 'm' as u8, 31u8, 'z' as u8, 60u8, 'k' as u8, 61u8, 1, 0, 0, 0,
+                'c' as u8, 14u8, 'm' as u8, 31u8, 'z' as u8, 60u8, 'k' as u8, 61u8, 1, 0, 0, 0, 4,
             ],
             output
         );
@@ -121,13 +143,14 @@ mod tests {
             filename: "test".to_string(),
             prefix_table: crate::tests::table_opendsa(),
             data_bytes: 256,
+            unused_bits: 3,
         };
         let output = Vec::<u8>::from(&header);
         assert_eq!(
             vec![
                 4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 16, 0, 'e' as u8, 0u8, 'u' as u8,
                 4u8, 'd' as u8, 5u8, 'l' as u8, 6u8, 'c' as u8, 14u8, 'm' as u8, 31u8, 'z' as u8,
-                60u8, 'k' as u8, 61u8, 0, 1, 0, 0,
+                60u8, 'k' as u8, 61u8, 0, 1, 0, 0, 3,
             ],
             output
         );
@@ -139,6 +162,7 @@ mod tests {
             filename: "testfile.txt".to_string(),
             prefix_table: crate::tests::table_opendsa(),
             data_bytes: 1,
+            unused_bits: 7,
         };
 
         let data: Vec<u8> = Vec::from(&header);
