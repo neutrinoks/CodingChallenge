@@ -19,10 +19,6 @@ impl<'s> BitStreamReader<'s> {
             cidx: 0,
         }
     }
-
-    pub fn unused_bits(&self) -> usize {
-        7 - self.bidx
-    }
 }
 
 impl<'r> Iterator for BitStreamReader<'r> {

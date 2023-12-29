@@ -4,13 +4,14 @@ mod algorithm;
 mod bitstream;
 mod command;
 mod fs;
-mod types;
 
 use algorithm::*;
-use types::{CompressedData, Header};
+use fs::{CompressedData, Header};
 
 pub use command::CtInput;
-pub use types::Result;
+
+/// Crate common default Result type.
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 /// One of the internal development steps and functions to be tested.
 fn frequency_analysis(input: &CtInput) -> Result<CharSpectrum> {
@@ -64,7 +65,7 @@ pub fn compression_tool(input: CtInput) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::Header;
+    use crate::fs::Header;
 
     pub(crate) fn testfile(name: &str) -> CtInput {
         let args = crate::command::CtArgs {
@@ -103,11 +104,6 @@ mod tests {
         table.push(PrefixCodeEntry::new('z', 60));
         table.push(PrefixCodeEntry::new('k', 61));
         PrefixCodeTable(table)
-    }
-
-    pub(crate) fn table_135_0() -> PrefixCodeTable {
-        let tree = create_huffman_tree(spec_135_0()).unwrap();
-        create_prefix_table(tree)
     }
 
     #[test]
@@ -190,6 +186,7 @@ mod tests {
         let result = Header::try_from(&data[..]).expect("Header::try_from failed");
 
         assert_eq!(header, result);
+        std::fs::remove_file(fname).expect("removing testfile failed");
     }
 
     #[test]
@@ -201,7 +198,7 @@ mod tests {
 
         let fname = "135-0.cpd";
         let cdata = compress(table, &input.content).expect("compress() failed");
-        crate::fs::write(&fname, &cdata).expect("write() failed");
+        cdata.write(&fname).expect("write() failed");
 
         assert!(std::path::Path::new(fname).exists());
         std::fs::remove_file(fname).expect("removing testfile failed");
