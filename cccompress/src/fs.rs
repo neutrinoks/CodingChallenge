@@ -191,7 +191,7 @@ impl CompressedData {
         // Same like above...
         let hdr_le_bytes = [buffer[1], buffer[2], buffer[3], buffer[4]];
         let hdr_len = u32::from_le_bytes(hdr_le_bytes) as usize;
-        let header = Header::try_from(&buffer[5..5 + hdr_len])?;
+        let header = Header::from(&buffer[5..5 + hdr_len]);
 
         // Same like above...
         if (header.data_bytes as usize) != buffer.len() - 5 - hdr_len {

@@ -46,7 +46,7 @@ pub struct CtArgs {
     /// Name of file to be decompressed (unpacked).
     #[clap(long, action)]
     pub unpack: Option<String>,
-    /// Optional output filename, after decompressing the compressed file.
+    /// Optional fixed output filename, after decompressing a compressed file.
     #[clap(long, action)]
     pub of: Option<String>,
 }

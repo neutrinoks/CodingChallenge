@@ -89,12 +89,8 @@ mod tests {
     use super::*;
     use crate::fs::Header;
 
-    pub(crate) fn testfile(name: &str) -> CtInput {
-        let args = crate::command::CtArgs {
-            source: name.to_string(),
-            filename: None,
-        };
-        CtInput::try_from(args).expect(&format!("testfile/expected: {}", name))
+    pub(crate) fn testfile(name: &str) -> String {
+        std::fs::read_to_string(name).expect(&format!("could not open testfile '{name}'"))
     }
 
     pub(crate) fn spec_opendsa() -> CharSpectrum {
@@ -219,7 +215,7 @@ mod tests {
         let table = create_prefix_table(tree);
 
         let fname = "135-0.cpd";
-        let cdata = compress(table, &input.content).expect("compress() failed");
+        let cdata = compress(table, &input).expect("compress() failed");
         cdata.write(&fname).expect("write() failed");
 
         assert!(std::path::Path::new(fname).exists());
