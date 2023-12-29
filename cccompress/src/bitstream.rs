@@ -4,7 +4,7 @@
 #[derive(Debug, Clone)]
 pub struct BitStreamReader<'s> {
     /// The true data stream based on `Vec<u8>`.
-    stream: &'s Vec<u8>,
+    stream: &'s [u8],
     /// A bit-index.
     bidx: usize,
     /// A byte-index (char).
@@ -12,7 +12,7 @@ pub struct BitStreamReader<'s> {
 }
 
 impl<'s> BitStreamReader<'s> {
-    pub fn new(stream: &'s Vec<u8>) -> BitStreamReader<'s> {
+    pub fn new(stream: &'s [u8]) -> BitStreamReader<'s> {
         BitStreamReader {
             stream,
             bidx: 0,
@@ -98,6 +98,35 @@ pub fn to_bits(code: u8) -> [u8; 8] {
         (code >> 6) & 1u8,
         (code >> 7) & 1u8,
     ]
+}
+
+#[derive(Debug)]
+pub struct BitBuffer {
+    val: u8,
+    idx: usize,
+}
+
+impl BitBuffer {
+    pub fn new() -> BitBuffer {
+        BitBuffer{val: 0, idx: 0}
+    }
+
+    pub fn reset(&mut self) {
+        self.val = 0;
+        self.idx = 0;
+    }
+
+    pub fn add_bit(&mut self, bit: u8) {
+        self.val |= bit << self.idx;
+    }
+}
+
+impl std::ops::Deref for BitBuffer {
+    type Target = u8;
+
+    fn deref(&self) -> &Self::Target {
+        &self.val
+    }
 }
 
 #[cfg(test)]

@@ -43,8 +43,8 @@ fn compress(table: PrefixCodeTable, text: &str) -> Result<CompressedData> {
 }
 
 /// Decoding method to transform encoded, compressed bit stream back to text.
-fn decompress(_cdata: &CompressedData) -> Result<String> {
-    todo!();
+fn decompress(cdata: &CompressedData) -> String {
+    cdata.header.prefix_table.stream2text(&cdata.data[..])
 }
 
 /// Main entry method for compression-tool use case, to be able to separate the code into library
@@ -75,7 +75,7 @@ pub fn compression_tool(directive: CtDirective) -> Result<String> {
                 cdata.header.filename.clone()
             };
 
-            let text = decompress(&cdata)?;
+            let text = decompress(&cdata);
             std::fs::write(&fname, &text)?;
             let bytes = text.len();
 

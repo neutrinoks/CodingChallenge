@@ -321,8 +321,20 @@ impl<'a> PrefixCodeTable {
         Ok(stream.finalize())
     }
 
-    pub fn stream2text(&self, _stream: &[u8]) -> String {
-        todo!();
+    pub fn stream2text(&self, stream: &[u8]) -> String {
+        let reader = BitStreamReader::new(stream);
+        let mut bitbuf = BitBuffer::new();
+        let mut text = String::new();
+
+        for bit in reader {
+            bitbuf.add_bit(bit);
+            if let Some(e) = self.get_by_code(*bitbuf) {
+                text.push(e.letter);
+                bitbuf.reset();
+            }
+        }
+
+        text
     }
 }
 
@@ -340,14 +352,12 @@ impl From<&CtBinaryTree> for PrefixCodeTable {
         let mut tree_iter = tree.iter();
         let mut searching = true;
 
-        let mut count = 0;
         while searching {
             if let Some(node) = tree_iter.next() {
                 match node {
                     CtTreeNode::Bin(c, _f) => {
                         let code = tree_iter.last_code();
                         table.push(PrefixCodeEntry::new(*c, code));
-                        count += 1;
                     }
                     _ => continue,
                 }
@@ -356,7 +366,6 @@ impl From<&CtBinaryTree> for PrefixCodeTable {
             }
         }
         table.sort_by(|x, y| x.code.cmp(&y.code));
-        println!("PrefixCodeTable generated with {} entries", count);
 
         PrefixCodeTable(table)
     }
