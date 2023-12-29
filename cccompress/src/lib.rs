@@ -8,14 +8,14 @@ mod fs;
 use algorithm::*;
 use fs::{CompressedData, Header};
 
-pub use command::CtInput;
+pub use command::CtDirective;
 
 /// Crate common default Result type.
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 /// One of the internal development steps and functions to be tested.
-fn frequency_analysis(input: &CtInput) -> Result<CharSpectrum> {
-    Ok(CharSpectrum::from_stream(&input.content))
+fn frequency_analysis(text: &str) -> Result<CharSpectrum> {
+    Ok(CharSpectrum::from_stream(text))
 }
 
 /// One of the internal development steps and functions to be tested.
@@ -31,8 +31,8 @@ fn create_prefix_table(tree: CtBinaryTree) -> PrefixCodeTable {
 /// Encoding method to transform text into encoded, compressed bit stream.
 fn compress(table: PrefixCodeTable, text: &str) -> Result<CompressedData> {
     let (data, uu_bits) = table.text2stream(text)?;
-    Ok(CompressedData{
-        header: Header{
+    Ok(CompressedData {
+        header: Header {
             filename: String::new(),
             prefix_table: table,
             data_bytes: data.len() as u32,
@@ -43,23 +43,45 @@ fn compress(table: PrefixCodeTable, text: &str) -> Result<CompressedData> {
 }
 
 /// Decoding method to transform encoded, compressed bit stream back to text.
-fn decompress(cdata: &CompressedData) -> Result<String> {
+fn decompress(_cdata: &CompressedData) -> Result<String> {
     todo!();
 }
 
 /// Main entry method for compression-tool use case, to be able to separate the code into library
 /// and not main module.
-pub fn compression_tool(input: CtInput) -> Result<String> {
-    let spectrum = frequency_analysis(&input)?;
-    let h_tree = create_huffman_tree(spectrum)?;
-    let table = create_prefix_table(h_tree);
+pub fn compression_tool(directive: CtDirective) -> Result<String> {
+    Ok(match directive {
+        CtDirective::Pack(source, of) => {
+            let content = std::fs::read_to_string(&source)?;
+            let spectrum = frequency_analysis(&content)?;
+            let h_tree = create_huffman_tree(spectrum)?;
+            let table = create_prefix_table(h_tree);
+            let fname = if let Some(ofname) = of {
+                ofname
+            } else {
+                fs::switch_file_type(&source)
+            };
 
-    let mut output = "Abstract from the PrefixCodeTable\n".to_string();
-    for i in 0..20 {
-        output.push_str(&format!("{}\n", table[i]));
-    }
+            let cdata = compress(table, &content)?;
+            let bytes = cdata.write(&fname)?;
 
-    Ok(output)
+            format!("Compressed '{source}'. Wrote {bytes} bytes to '{fname}'")
+        }
+        CtDirective::Unpack(source) => {
+            let cdata = CompressedData::read(&source)?;
+            let fname = if cdata.header.filename.is_empty() {
+                fs::switch_file_type(&source)
+            } else {
+                cdata.header.filename.clone()
+            };
+
+            let text = decompress(&cdata)?;
+            std::fs::write(&fname, &text)?;
+            let bytes = text.len();
+
+            format!("Decompressed '{source}'. Wrote {bytes} bytes to '{fname}'")
+        }
+    })
 }
 
 #[cfg(test)]

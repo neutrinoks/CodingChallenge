@@ -1,13 +1,10 @@
 //! Module contains read and write operations related to files on harddisk, to simplify and
 //! generalize reading and writing from and to files.
 
+use crate::{algorithm::PrefixCodeTable, Result};
 use std::{
     fs::File,
     io::{prelude::*, BufReader},
-};
-use crate::{
-    Result,
-    algorithm::PrefixCodeTable,
 };
 
 /// File extension, file type specification.
@@ -27,7 +24,7 @@ pub const FILE_CONST: u8 = 23;
 /// n+3..n+m+3      (4) prefix code table
 /// n+m+3..n+m+8    (5) 4 bytes u32, number of bytes of encoded data content
 /// n+m+8           (6) number of unused bits in the last byte
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Header {
     /// (Optional) specified filename.
     pub filename: String,
@@ -37,17 +34,6 @@ pub struct Header {
     pub data_bytes: u32,
     /// Number of unused bits at the last byte.
     pub unused_bits: u8,
-}
-
-impl Default for Header {
-    fn default() -> Header {
-        Header{
-            filename: String::new(),
-            prefix_table: PrefixCodeTable::default(),
-            data_bytes: 0,
-            unused_bits: 0,
-        }
-    }
 }
 
 impl From<&[u8]> for Header {
@@ -62,7 +48,7 @@ impl From<&[u8]> for Header {
         }
 
         // (3) & (4)
-        let m = u16::from_le_bytes([data[n+1], data[n+2]]) as usize;
+        let m = u16::from_le_bytes([data[n + 1], data[n + 2]]) as usize;
         let prefix_table = PrefixCodeTable::from(&data[n + 3..n + m + 3]);
 
         // (5)
@@ -117,6 +103,20 @@ impl From<&Header> for Vec<u8> {
     }
 }
 
+pub fn switch_file_type(name: &str) -> String {
+    let mut oname = String::from(name);
+    match oname.split_off(oname.len() - 3).as_str() {
+        "txt" => {
+            oname.push_str(FILE_EXTENSION);
+        }
+        FILE_EXTENSION => oname.push_str("txt"),
+        _ => {
+            panic!("switch_file_type(): not allowed this file ending!!!")
+        }
+    }
+    oname
+}
+
 /// Method checks for a correct filename ending regarding the file type extension. Therefor, see
 /// the contant `FILE_EXTENSION`.
 fn check_filename(name: &str) -> Result<()> {
@@ -141,8 +141,12 @@ impl CompressedData {
     pub fn write(&self, filename: &str) -> Result<usize> {
         check_filename(filename)?;
         if self.data.len() != (self.header.data_bytes as usize) {
-            return Err(format!("write: header expects {} bytes, but data has {}",
-                               self.header.data_bytes, self.data.len()).into())
+            return Err(format!(
+                "write: header expects {} bytes, but data has {}",
+                self.header.data_bytes,
+                self.data.len()
+            )
+            .into());
         }
 
         let mut bytes = 0;
@@ -191,16 +195,17 @@ impl CompressedData {
 
         // Same like above...
         if (header.data_bytes as usize) != buffer.len() - 5 - hdr_len {
-            return Err(format!("'{filename}' seems to be broken, header expects {} data bytes, but only {} remain",
-                               header.data_bytes, buffer.len() - 5 - hdr_len).into())
+            return Err(format!(
+                "'{filename}' seems to be broken, header expects {} data bytes, but only {} remain",
+                header.data_bytes,
+                buffer.len() - 5 - hdr_len
+            )
+            .into());
         }
         let mut data = Vec::<u8>::new();
-        data.extend_from_slice(&buffer[5+hdr_len..]);
+        data.extend_from_slice(&buffer[5 + hdr_len..]);
 
-        Ok(CompressedData{
-            header,
-            data,
-        })
+        Ok(CompressedData { header, data })
     }
 }
 
@@ -263,7 +268,7 @@ mod tests {
     #[test]
     fn write_and_read() {
         let fname = "testfile.cpd";
-        let cdata = CompressedData{
+        let cdata = CompressedData {
             header: Header {
                 filename: "othername.txt".to_string(),
                 prefix_table: crate::tests::table_opendsa(),

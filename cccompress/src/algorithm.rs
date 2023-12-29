@@ -1,8 +1,8 @@
 //! Module contains several data type implementations, such as `CharSpectrum` or `CtBinaryTree`,
 //! which represent milestone date outputs during the development.
 
-use std::{borrow::Borrow, collections::HashMap};
 use crate::bitstream::*;
+use std::{borrow::Borrow, collections::HashMap};
 
 /// Stores a single frequency-bin, e.g. for the character 'r', how many times 'r' appeared in a
 /// given input stream.
@@ -275,7 +275,7 @@ fn count_bits(code: u8) -> usize {
 }
 
 /// TODO
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct PrefixCodeTable(pub Vec<PrefixCodeEntry>);
 
 impl<'a> PrefixCodeTable {
@@ -309,7 +309,7 @@ impl<'a> PrefixCodeTable {
             let e = if let Some(e) = self.get_by_char(c) {
                 e
             } else {
-                return Err(format!("no entry with letter '{}'", c).into())
+                return Err(format!("no entry with letter '{}'", c).into());
             };
 
             let bits = to_bits(e.code);
@@ -323,12 +323,6 @@ impl<'a> PrefixCodeTable {
 
     pub fn stream2text(&self, _stream: &[u8]) -> String {
         todo!();
-    }
-}
-
-impl Default for PrefixCodeTable {
-    fn default() -> PrefixCodeTable {
-        PrefixCodeTable(Vec::new())
     }
 }
 
@@ -453,7 +447,9 @@ mod tests {
     #[test]
     fn pfc_text2stream() {
         let table = crate::tests::table_opendsa();
-        let (stream, uu_bits) = table.text2stream("lude").expect("PrefixCodeTable::text2stream() failed");
+        let (stream, uu_bits) = table
+            .text2stream("lude")
+            .expect("PrefixCodeTable::text2stream() failed");
         // "lude" -> 6, 4, 5, 0 -> 110, 100, 101, 0 -> 0101001011
         // "lude" -> 01 0100.1011 -> 75, 1
         println!("{stream:?}");

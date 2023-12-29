@@ -13,7 +13,7 @@ pub struct BitStreamReader<'s> {
 
 impl<'s> BitStreamReader<'s> {
     pub fn new(stream: &'s Vec<u8>) -> BitStreamReader<'s> {
-        BitStreamReader{
+        BitStreamReader {
             stream,
             bidx: 0,
             cidx: 0,
@@ -49,9 +49,9 @@ pub struct BitStreamWriter {
     cidx: usize,
 }
 
-impl<'s> BitStreamWriter {
+impl BitStreamWriter {
     pub fn new() -> BitStreamWriter {
-        BitStreamWriter{
+        BitStreamWriter {
             stream: vec![0],
             bidx: 0,
             cidx: 0,
