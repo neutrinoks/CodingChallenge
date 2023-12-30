@@ -25,7 +25,7 @@ fn create_huffman_tree(spectrum: CharSpectrum) -> Result<CtBinaryTree> {
 
 /// One of the internal development steps and functions to be tested.
 fn create_prefix_table(tree: CtBinaryTree) -> PrefixCodeTable {
-    PrefixCodeTable::from(&tree)
+    PrefixCodeTable::from(tree)
 }
 
 fn pfct_from_text(input: &str) -> Result<PrefixCodeTable> {
@@ -50,7 +50,10 @@ fn compress(table: PrefixCodeTable, text: &str) -> Result<CompressedData> {
 
 /// Decoding method to transform encoded, compressed bit stream back to text.
 fn decompress(cdata: &CompressedData) -> String {
-    cdata.header.prefix_table.stream2text(&cdata.data[..], cdata.header.unused_bits)
+    cdata
+        .header
+        .prefix_table
+        .stream2text(&cdata.data[..], cdata.header.unused_bits)
 }
 
 /// Main entry method for compression-tool use case, to be able to separate the code into library
@@ -131,17 +134,23 @@ mod tests {
     #[test]
     fn prefix_code_table_test() {
         let input = "abbcccddddeeeeeffffff";
-        let spec = frequency_analysis(&input).expect("frequency_analysis() failed");
-        let tree = create_huffman_tree(spec).expect("create_huffman_tree() failed");
-        let table = create_prefix_table(tree);
+        // let spec = frequency_analysis(&input).expect("frequency_analysis() failed");
+        // let tree = create_huffman_tree(spec).expect("create_huffman_tree() failed");
+        // let table = create_prefix_table(tree);
+        let table = pfct_from_text(&input).expect("pfct_from_text() failed");
         // table.debug_entries(6);
 
-        assert_eq!(table[0], PrefixCodeEntry::new('f', 0));
-        assert_eq!(table[1], PrefixCodeEntry::new('e', 0));
-        assert_eq!(table[2], PrefixCodeEntry::new('d', 0));
-        assert_eq!(table[3], PrefixCodeEntry::new('c', 0));
-        assert_eq!(table[4], PrefixCodeEntry::new('b', 0));
-        assert_eq!(table[5], PrefixCodeEntry::new('a', 0));
+        // assert_eq!(table[0], PrefixCodeEntry::new('f', 0));
+        // assert_eq!(table[1], PrefixCodeEntry::new('e', 0));
+        // assert_eq!(table[2], PrefixCodeEntry::new('d', 0));
+        // assert_eq!(table[3], PrefixCodeEntry::new('c', 0));
+        // assert_eq!(table[4], PrefixCodeEntry::new('b', 0));
+        // assert_eq!(table[5], PrefixCodeEntry::new('a', 0));
+
+        let cdata = compress(table, &input).expect("compress() failed");
+        let rtext = decompress(&cdata);
+
+        assert_eq!(input, rtext.as_str());
     }
 
     #[test]
@@ -242,6 +251,7 @@ mod tests {
 
     #[test]
     fn step_6() {
+        todo!();
         // I redefined this step a little on my own, because it does not fit to my style of
         // development...
         let input = testfile("loremipsum.txt");

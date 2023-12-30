@@ -127,7 +127,7 @@ pub struct BitBuffer {
 
 impl BitBuffer {
     pub fn new() -> BitBuffer {
-        BitBuffer{val: 0, cnt: 0}
+        BitBuffer { val: 0, cnt: 0 }
     }
 
     pub fn reset(&mut self) {
@@ -156,18 +156,30 @@ mod tests {
 
     #[test]
     fn bitstreamreader_simple() {
-        let stream: Vec<u8> = vec![5, 6];
-        let mut reader = BitStreamReader::new(&stream, 5u8);
+        // reftext -> 11110111 10111111 00001101 01111110 01010101 01
+        // reftext -> 247      191      13       126      85       1    /(6)
+        let stream: Vec<u8> = vec![247, 191, 13];
+        let mut reader = BitStreamReader::new(&stream, 4u8);
 
+        assert_eq!(reader.next(), Some(1));
+        assert_eq!(reader.next(), Some(1));
         assert_eq!(reader.next(), Some(1));
         assert_eq!(reader.next(), Some(0));
         assert_eq!(reader.next(), Some(1));
-        assert_eq!(reader.next(), Some(0));
-        assert_eq!(reader.next(), Some(0));
-        assert_eq!(reader.next(), Some(0));
-        assert_eq!(reader.next(), Some(0));
-        assert_eq!(reader.next(), Some(0));
+        assert_eq!(reader.next(), Some(1));
+        assert_eq!(reader.next(), Some(1));
+        assert_eq!(reader.next(), Some(1));
 
+        assert_eq!(reader.next(), Some(1));
+        assert_eq!(reader.next(), Some(1));
+        assert_eq!(reader.next(), Some(1));
+        assert_eq!(reader.next(), Some(1));
+        assert_eq!(reader.next(), Some(1));
+        assert_eq!(reader.next(), Some(1));
+        assert_eq!(reader.next(), Some(0));
+        assert_eq!(reader.next(), Some(1));
+
+        assert_eq!(reader.next(), Some(1));
         assert_eq!(reader.next(), Some(0));
         assert_eq!(reader.next(), Some(1));
         assert_eq!(reader.next(), Some(1));
@@ -199,5 +211,23 @@ mod tests {
         let (stream, uu_bits) = writer.finalize();
         assert_eq!(stream, vec![15u8, 64u8]);
         assert_eq!(uu_bits, 1);
+    }
+
+    #[test]
+    fn bitbuffer_simple() {
+        let mut buffer = BitBuffer::new();
+        assert_eq!(*buffer, 0u8);
+
+        buffer.add_bit(1);
+        assert_eq!(*buffer, 1u8);
+
+        buffer.add_bit(0);
+        assert_eq!(*buffer, 2u8);
+
+        buffer.add_bit(1);
+        assert_eq!(*buffer, 5u8);
+
+        buffer.add_bit(0);
+        assert_eq!(*buffer, 10u8);
     }
 }

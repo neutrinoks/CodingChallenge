@@ -341,13 +341,22 @@ impl<'a> PrefixCodeTable {
 
         for bit in reader {
             bitbuf.add_bit(bit);
+            println!("added bit, BitBuffer({})", *bitbuf);
             if let Some(e) = self.entry_by_code(*bitbuf) {
                 text.push(e.letter);
                 bitbuf.reset();
+                println!(
+                    "entry found and pushed to stack: {e:?} | BitBuffer({})",
+                    *bitbuf
+                );
             }
         }
 
         text
+    }
+
+    pub fn sort(&mut self) {
+        self.0.sort_by(|a, b| a.code.cmp(&b.code));
     }
 
     pub fn debug_entries(&self, n: usize) {
@@ -370,8 +379,8 @@ impl std::ops::Index<usize> for PrefixCodeTable {
     }
 }
 
-impl From<&CtBinaryTree> for PrefixCodeTable {
-    fn from(tree: &CtBinaryTree) -> PrefixCodeTable {
+impl From<CtBinaryTree> for PrefixCodeTable {
+    fn from(tree: CtBinaryTree) -> PrefixCodeTable {
         let mut table: Vec<PrefixCodeEntry> = Vec::new();
         let mut tree_iter = tree.iter();
         let mut searching = true;
@@ -390,6 +399,9 @@ impl From<&CtBinaryTree> for PrefixCodeTable {
             }
         }
         table.sort_by(|x, y| x.code.cmp(&y.code));
+        // for i in 1..table.len() {
+        //     assert!(table[i-1].code != table[i].code);
+        // }
 
         PrefixCodeTable(table)
     }
@@ -440,7 +452,7 @@ impl<'a> Iterator for PrefixCodeTableIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{PrefixCodeEntry, PrefixCodeTable};
+    use super::{CharSpectrum, CtBinaryTree, PrefixCodeEntry, PrefixCodeTable};
 
     #[test]
     fn pfct_iter() {
@@ -490,12 +502,41 @@ mod tests {
     }
 
     #[test]
-    fn pfct_text2stream_and_back() {
-        let reftext = "ludecluemzk";
+    fn pfct_stream2text() {
         let table = crate::tests::table_opendsa();
+        let stream: Vec<u8> = vec![75u8, 1u8];
+        let uu_bits = 6u8;
+        // For values, see explanation in test above.
+        let text = table.stream2text(&stream[..], uu_bits);
+        assert_eq!("lude", text.as_str());
+    }
+
+    #[test]
+    fn pfct_text_and_stream() {
+        let reftext = "abbcccddddeeeeeffffff";
+        let spec = CharSpectrum::from_stream(reftext);
+        let tree = CtBinaryTree::try_from(spec).expect("CtBinaryTree failed");
+
+        let mut table = PrefixCodeTable::from(tree);
+        table.sort();
+        assert_eq!(table[0], PrefixCodeEntry::new('d', 0));
+        assert_eq!(table[1], PrefixCodeEntry::new('e', 1));
+        assert_eq!(table[2], PrefixCodeEntry::new('f', 2));
+        assert_eq!(table[3], PrefixCodeEntry::new('c', 6));
+        assert_eq!(table[4], PrefixCodeEntry::new('a', 14));
+        assert_eq!(table[5], PrefixCodeEntry::new('b', 15));
+
+        // a(1110), b(1111), c(110), d(0), e(1), f(10)
+        // reftext -> 14 15 15 6 6 6 0 0 0 0 1 1 1 1 1 2 2 2 2 2 2
+        // reftext -> 1110 1111. 1111 110 1.10 110 0 0 0. 0 1 1 1 1 1 10. 10 10 10 10. 10
+        // reftext -> 11110111 10111111 00001101 01111110 01010101 01
+        // reftext -> 247      191      13       126      85       1    /(6)
         let (stream, uu_bits) = table
             .text2stream(&reftext)
             .expect("PrefixCodeTable::text2stream() failed");
+        assert_eq!(stream, vec![247u8, 191u8, 13u8, 126u8, 85u8, 1u8]);
+        assert_eq!(uu_bits, 6);
+
         let text = table.stream2text(&stream[..], uu_bits);
         assert_eq!(reftext, text.as_str());
     }
