@@ -1,9 +1,9 @@
 //! Library with functionality of compression-tool.
 
-mod algorithm;
-mod bitstream;
+pub mod algorithm;
+pub mod bitstream;
 mod command;
-mod fs;
+pub mod fs;
 
 use algorithm::*;
 use fs::{CompressedData, Header};
