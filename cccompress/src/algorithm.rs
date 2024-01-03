@@ -55,6 +55,10 @@ impl<'r> CtBinaryTree {
     pub fn iter(&'r self) -> CtBinaryTreeIter<'r> {
         CtBinaryTreeIter::from(self)
     }
+
+    pub fn get_node_zero(&self) -> &'r CtTreeNode {
+        self.node.as_ref()
+    }
 }
 
 impl From<CtTreeNode> for CtBinaryTree {
@@ -215,6 +219,32 @@ impl CtTreeNode {
             }
         }
         n_el
+    }
+
+    pub fn multiline_disp(&self) -> [String; 2] {
+        match self {
+            CtTreeNode::Bin(c, f) => {
+                let line1 = format!("'{c}'");
+                let line2 = format!("{f}");
+                [line1, line2]
+            }
+            CtTreeNode::Hierarchy(f, l, r) => {
+                let cap = |op: &Option<Box<CtTreeNode>>| -> String {
+                    if let Some(node) = op {
+                        match node.as_ref() {
+                            CtTreeNode::Bin(_,_) => "B".to_string(),
+                            CtTreeNode::Hierarchy(_,_,_) => "H".to_string(),
+                        }
+                    } else {
+                        "-".to_string()
+                    }
+                };
+
+                let line1 = format!("{f}");
+                let line2 = format!("{} | {}", cap(l), cap(r));
+                [line1, line2]
+            }
+        }
     }
 
     #[cfg(test)]
