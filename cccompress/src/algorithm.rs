@@ -158,14 +158,6 @@ impl TryFrom<CharSpectrum> for CtBinaryTree {
 pub struct CtBinaryTreeIter<'r> {
     next_node: Option<&'r CtTreeNode>,
     parents: Vec<(&'r CtTreeNode, bool)>,
-    last_code: u8,
-}
-
-impl<'r> CtBinaryTreeIter<'r> {
-    /// Generates the code from the given parents stack.
-    pub fn last_code(&self) -> u8 {
-        self.last_code
-    }
 }
 
 impl<'r> From<&'r CtBinaryTree> for CtBinaryTreeIter<'r> {
@@ -173,16 +165,17 @@ impl<'r> From<&'r CtBinaryTree> for CtBinaryTreeIter<'r> {
         CtBinaryTreeIter {
             next_node: Some(&tree.node),
             parents: Vec::new(),
-            last_code: 0,
         }
     }
 }
 
 impl<'r> Iterator for CtBinaryTreeIter<'r> {
-    type Item = &'r CtTreeNode;
+    type Item = (&'r CtTreeNode, u8);
 
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.next_node?;
+        let bits: Vec<u8> = self.parents.iter().map(|x| x.1 as u8).collect();
+        let code: u8 = bits.iter().fold(0, |result, &bit| (result << 1) ^ bit);
 
         // The scheme reads as follow:
         // - Steps are describing what node to choose next from current node.
@@ -196,10 +189,6 @@ impl<'r> Iterator for CtBinaryTreeIter<'r> {
                 self.next_node = Some(left.as_ref().unwrap().borrow());
             }
             CtTreeNode::Bin(_, _) => {
-                // In case of a new Bin, we update our internal code.
-                let bits: Vec<u8> = self.parents.iter().map(|x| x.1 as u8).collect();
-                let code: u8 = bits.iter().fold(0, |result, &bit| (result << 1) ^ bit);
-                self.last_code = code;
                 // Now we search for the next leaf.
                 if self.parents.is_empty() {
                     self.next_node = None;
@@ -232,7 +221,7 @@ impl<'r> Iterator for CtBinaryTreeIter<'r> {
             }
         }
 
-        Some(next)
+        Some((next, code))
     }
 }
 
@@ -454,6 +443,16 @@ impl<'a> PrefixCodeTable {
     }
 }
 
+impl std::fmt::Display for PrefixCodeTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(f, "PrefixCodeTable\n---------------\n")?;
+        for e in self.0.iter() {
+            write!(f, "{e}\n")?;
+        }
+        Ok(())
+    }
+}
+
 impl std::ops::Index<usize> for PrefixCodeTable {
     type Output = PrefixCodeEntry;
 
@@ -470,10 +469,9 @@ impl From<CtBinaryTree> for PrefixCodeTable {
 
         while searching {
             if let Some(node) = tree_iter.next() {
-                match node {
+                match node.0 {
                     CtTreeNode::Bin(c, _f) => {
-                        let code = tree_iter.last_code();
-                        table.push(PrefixCodeEntry::new(*c, code));
+                        table.push(PrefixCodeEntry::new(*c, node.1));
                     }
                     _ => continue,
                 }
@@ -530,6 +528,42 @@ impl<'a> Iterator for PrefixCodeTableIter<'a> {
         } else {
             None
         }
+    }
+}
+
+pub(crate) fn inspect_tree(tree: &CtBinaryTree, max_level: u32) {
+    for l in 0_u32..=max_level {
+        let nth = 2_u32.pow(l);
+        for n in 0_u32..nth-1_u32 {
+            print!("{} | ", ond2txt(tree.get_node(l,n)));
+        }
+        println!("{}\n", ond2txt(tree.get_node(l,nth-1)));
+    }
+}
+
+fn ond2txt(opt_node: Option<&CtTreeNode>) -> String {
+    let opt2txt = |o: &Option<Box<CtTreeNode>>| -> String {
+        if let Some(node) = o {
+            match node.as_ref() {
+                CtTreeNode::Hierarchy(f,_,_) => format!("H({f})"),
+                CtTreeNode::Bin(c,_) => format!("B({c})"),
+            }
+        } else {
+            "None".to_string()
+        }
+    };
+    
+    if let Some(node) = opt_node {
+        match node {
+            CtTreeNode::Hierarchy(f,l,r) => {
+                format!("Hierarchy({f}, {}, {})", opt2txt(l), opt2txt(r))
+            }
+            CtTreeNode::Bin(c,f) => {
+                format!("Bin({c}, {f})")
+            }
+        }
+    } else {
+        "None".to_string()
     }
 }
 

@@ -94,7 +94,7 @@ pub fn compression_tool(directive: CtDirective) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fs::Header;
+    use crate::{algorithm::inspect_tree, fs::Header};
 
     pub(crate) fn testfile(name: &str) -> String {
         std::fs::read_to_string(name).expect(&format!("could not open testfile '{name}'"))
@@ -132,14 +132,15 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "to be fixed"]
+    #[ignore = "still failing, to be fixed"]
     fn prefix_code_table_test() {
         let input = "abbcccddddeeeeeffffff";
-        // let spec = frequency_analysis(&input).expect("frequency_analysis() failed");
-        // let tree = create_huffman_tree(spec).expect("create_huffman_tree() failed");
-        // let table = create_prefix_table(tree);
-        let table = pfct_from_text(&input).expect("pfct_from_text() failed");
-        // table.debug_entries(6);
+        let spec = frequency_analysis(&input).expect("frequency_analysis() failed");
+        let tree = create_huffman_tree(spec).expect("create_huffman_tree() failed");
+        inspect_tree(&tree, 4);
+        let table = create_prefix_table(tree);
+        println!("{table}");
+        // let table = pfct_from_text(&input).expect("pfct_from_text() failed");
 
         // assert_eq!(table[0], PrefixCodeEntry::new('f', 0));
         // assert_eq!(table[1], PrefixCodeEntry::new('e', 0));
@@ -177,21 +178,21 @@ mod tests {
         let tree = create_huffman_tree(spec).expect("create_huffman_tree failed");
         let mut tree_iter = tree.iter();
 
-        assert!(tree_iter.next().unwrap().test_hierarchy(306));
-        assert_eq!(*tree_iter.next().unwrap(), CtTreeNode::Bin('e', 120));
-        assert!(tree_iter.next().unwrap().test_hierarchy(186));
-        assert!(tree_iter.next().unwrap().test_hierarchy(79));
-        assert_eq!(*tree_iter.next().unwrap(), CtTreeNode::Bin('u', 37));
-        assert_eq!(*tree_iter.next().unwrap(), CtTreeNode::Bin('d', 42));
-        assert!(tree_iter.next().unwrap().test_hierarchy(107));
-        assert!(tree_iter.next().unwrap().test_bin('l', 42));
-        assert!(tree_iter.next().unwrap().test_hierarchy(65));
-        assert!(tree_iter.next().unwrap().test_bin('c', 32));
-        assert!(tree_iter.next().unwrap().test_hierarchy(33));
-        assert!(tree_iter.next().unwrap().test_hierarchy(9));
-        assert!(tree_iter.next().unwrap().test_bin('z', 2));
-        assert!(tree_iter.next().unwrap().test_bin('k', 7));
-        assert!(tree_iter.next().unwrap().test_bin('m', 24));
+        assert!(tree_iter.next().unwrap().0.test_hierarchy(306));
+        assert_eq!(*tree_iter.next().unwrap().0, CtTreeNode::Bin('e', 120));
+        assert!(tree_iter.next().unwrap().0.test_hierarchy(186));
+        assert!(tree_iter.next().unwrap().0.test_hierarchy(79));
+        assert_eq!(*tree_iter.next().unwrap().0, CtTreeNode::Bin('u', 37));
+        assert_eq!(*tree_iter.next().unwrap().0, CtTreeNode::Bin('d', 42));
+        assert!(tree_iter.next().unwrap().0.test_hierarchy(107));
+        assert!(tree_iter.next().unwrap().0.test_bin('l', 42));
+        assert!(tree_iter.next().unwrap().0.test_hierarchy(65));
+        assert!(tree_iter.next().unwrap().0.test_bin('c', 32));
+        assert!(tree_iter.next().unwrap().0.test_hierarchy(33));
+        assert!(tree_iter.next().unwrap().0.test_hierarchy(9));
+        assert!(tree_iter.next().unwrap().0.test_bin('z', 2));
+        assert!(tree_iter.next().unwrap().0.test_bin('k', 7));
+        assert!(tree_iter.next().unwrap().0.test_bin('m', 24));
     }
 
     #[test]
