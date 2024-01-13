@@ -1,0 +1,13 @@
+[workspace.package]
+authors = ["Michael Eberhardt <github@michael-eberhardt.de>"]
+edition = "2021"
+readme = "README.md"
+repository = "https://github.com/neutrinoks/CodingChallenge"
+
+[workspace]
+members = [
+    "ccwc",
+    "ccjparse",
+    "cccompress",
+]
+resolver = "2"
