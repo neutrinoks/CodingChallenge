@@ -6,6 +6,8 @@ authors.workspace = true
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
+huffman-coding = "0.1"
 
 [dev-dependencies]
+rand = "0.8.5"
 totems = "0.2"

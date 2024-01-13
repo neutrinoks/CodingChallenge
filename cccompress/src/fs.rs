@@ -1,7 +1,7 @@
 //! Module contains read and write operations related to files on harddisk, to simplify and
 //! generalize reading and writing from and to files.
 
-use crate::{algorithm::PrefixCodeTable, Result};
+use crate::Result;
 use std::{
     fs::File,
     io::{prelude::*, BufReader},
@@ -20,20 +20,17 @@ pub const FILE_CONST: u8 = 23;
 ///
 /// 0               (1) number of bytes (n) for an optional filename, 0 when no filename specified
 /// 1..n+1          (2) optional filename
-/// n+1..n+3        (3) number of bytes (m) for the prefix code table as u16 (2 Bytes)
-/// n+3..n+m+3      (4) prefix code table
-/// n+m+3..n+m+8    (5) 4 bytes u32, number of bytes of encoded data content
-/// n+m+8           (6) number of unused bits in the last byte
+/// n+3..n+259      (3) prefix code table, 256 bytes
+/// n+259..n+263    (5) 4 bytes u32, number of bytes of encoded data content
+/// n+263           (6) number of unused bits in the last byte
 #[derive(Debug, Default, PartialEq)]
 pub struct Header {
     /// (Optional) specified filename.
     pub filename: String,
     /// The prefix code table.
-    pub prefix_table: PrefixCodeTable,
+    pub prefix_table: Vec<u8>,
     /// Number of bytes for the encoded data.
     pub data_bytes: u32,
-    /// Number of unused bits at the last byte.
-    pub unused_bits: u8,
 }
 
 impl From<&[u8]> for Header {
@@ -48,23 +45,17 @@ impl From<&[u8]> for Header {
         }
 
         // (3) & (4)
-        let m = u16::from_le_bytes([data[n + 1], data[n + 2]]) as usize;
-        let prefix_table = PrefixCodeTable::from(&data[n + 3..n + m + 3]);
+        let prefix_table: Vec<u8> = data[n + 1..n + 257].to_vec();
 
         // (5)
-        let idx = m + n + 3;
+        let idx = n + 257;
         let data_bytes = [data[idx], data[idx + 1], data[idx + 2], data[idx + 3]];
         let data_bytes = u32::from_le_bytes(data_bytes);
-
-        // (6)
-        let idx = idx + 4;
-        let unused_bits = data[idx];
 
         Header {
             filename,
             prefix_table,
             data_bytes,
-            unused_bits,
         }
     }
 }
@@ -83,10 +74,7 @@ impl From<&Header> for Vec<u8> {
         }
 
         // (3) & (4)
-        let mut table_data = Vec::<u8>::from(&hdr.prefix_table);
-        let m = (table_data.len() as u16).to_le_bytes();
-        data.push(m[0]);
-        data.push(m[1]);
+        let mut table_data = hdr.prefix_table.clone();
         data.append(&mut table_data);
 
         // (5)
@@ -95,9 +83,6 @@ impl From<&Header> for Vec<u8> {
         data.push(be_bytes[1]);
         data.push(be_bytes[2]);
         data.push(be_bytes[3]);
-
-        // (6)
-        data.push(hdr.unused_bits);
 
         data
     }
@@ -212,70 +197,70 @@ impl CompressedData {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::Rng;
+
+    fn testdata() -> (Vec<u8>, Vec<u8>) {
+        let mut rng = rand::thread_rng();
+        let mut table = Vec::<u8>::new();
+        let mut data = Vec::<u8>::new();
+        for _ in 0..256 {
+            table.push(rng.gen());
+            data.push(rng.gen());
+        }
+        (table, data)
+    }
 
     #[test]
-    fn header_to_bytes_1() {
+    fn header_no_filename() {
+        let (mut table, _) = testdata();
         let header = Header {
             filename: String::new(),
-            prefix_table: crate::tests::table_opendsa(),
+            prefix_table: table.clone(),
             data_bytes: 1,
-            unused_bits: 4,
         };
         let output = Vec::<u8>::from(&header);
-        assert_eq!(
-            vec![
-                0, 16, 0, 'e' as u8, 0u8, 'u' as u8, 4u8, 'd' as u8, 5u8, 'l' as u8, 6u8,
-                'c' as u8, 14u8, 'm' as u8, 31u8, 'z' as u8, 60u8, 'k' as u8, 61u8, 1, 0, 0, 0, 4,
-            ],
-            output
-        );
+
+        let mut reference = vec![0u8];
+        reference.append(&mut table);
+        reference.append(&mut vec![1u8, 0u8, 0u8, 0u8]);
+
+        assert_eq!(reference, output);
+
+        let hdr_out = Header::from(&output[..]);
+        assert_eq!(header, hdr_out);
     }
 
     #[test]
-    fn header_to_bytes_2() {
+    fn header_with_filename() {
+        let (mut table, _) = testdata();
         let header = Header {
             filename: "test".to_string(),
-            prefix_table: crate::tests::table_opendsa(),
+            prefix_table: table.clone(),
             data_bytes: 256,
-            unused_bits: 3,
         };
         let output = Vec::<u8>::from(&header);
-        assert_eq!(
-            vec![
-                4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 16, 0, 'e' as u8, 0u8, 'u' as u8,
-                4u8, 'd' as u8, 5u8, 'l' as u8, 6u8, 'c' as u8, 14u8, 'm' as u8, 31u8, 'z' as u8,
-                60u8, 'k' as u8, 61u8, 0, 1, 0, 0, 3,
-            ],
-            output
-        );
-    }
 
-    #[test]
-    fn header_to_bytes_and_back() {
-        let header = Header {
-            filename: "testfile.txt".to_string(),
-            prefix_table: crate::tests::table_opendsa(),
-            data_bytes: 1,
-            unused_bits: 7,
-        };
+        let mut reference = vec![4, 't' as u8, 'e' as u8, 's' as u8, 't' as u8];
+        reference.append(&mut table);
+        reference.append(&mut vec![0u8, 1u8, 0u8, 0u8]);
 
-        let data: Vec<u8> = Vec::from(&header);
-        let output = Header::from(&data[..]);
+        assert_eq!(reference, output);
 
-        assert_eq!(header, output);
+        let hdr_out = Header::from(&output[..]);
+        assert_eq!(header, hdr_out);
     }
 
     #[test]
     fn write_and_read() {
+        let (table, data) = testdata();
         let fname = "testfile.cpd";
         let cdata = CompressedData {
             header: Header {
                 filename: "othername.txt".to_string(),
-                prefix_table: crate::tests::table_opendsa(),
-                data_bytes: 4,
-                unused_bits: 3,
+                prefix_table: table,
+                data_bytes: data.len() as u32,
             },
-            data: vec![1, 2, 3, 4],
+            data,
         };
 
         cdata.write(&fname).expect("write() failed");
