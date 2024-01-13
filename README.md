@@ -1,12 +1,12 @@
 # Coding Challenge by John Cricket
 
-This is my personal repository for participating on some coding challenges from https://codingchallenges.fyi/ by John Cricket. Implementation will always be in Rust. Feel free to contact me, give feedback, ask questions... whatever you like.
+This is my personal repository for participating on the [coding challenges by John Cricket](https://codingchallenges.fyi/). All projects here will be implemented in Rust. Feel free to contact me, give feedback, ask questions... whatever you like.
 
 ### Challenges (Extract)
 
 - [X] **WC Tool (ccwc)**
 - [X] **JSON Parser (ccjparse)**
-- [ ] _Compression Tool (cccompress)_
+- [X] **Compression Tool (cccompress)**
 - [ ] Cut Tool
 - [ ] Load Balancer
 - [ ] Sort Tool
