@@ -12,6 +12,8 @@ This is my personal repository for participating on the [coding challenges by Jo
 - [ ] Sort Tool
 - [ ] Calculator
 - [ ] Redis Server
-- [ ] Grep
-- [ ] Uniq Tool
-- [ ] Web Server
+- [ ] grep
+- [ ] uniq Tool
+- [X] **Web Server**
+- [ ] URL Shortener
+- [ ] diff Tool

@@ -8,6 +8,6 @@ repository = "https://github.com/neutrinoks/CodingChallenge"
 members = [
     "ccwc",
     "ccjparse",
-    "cccompress",
+    "cccompress", "ccwebserv",
 ]
 resolver = "2"
