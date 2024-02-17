@@ -2,6 +2,15 @@
 
 use std::{error, fmt, io};
 
+/// Module internal macro for default error messages in `TryFrom<&str>` implementations for HTTP-
+/// type definitions.
+macro_rules! http_tryfrm_err {
+    ($s:expr) => {{
+        let msg = format!("unexpected content: {}", $s);
+        return Err(string_to_invalid_data_err(msg));
+    }};
+}
+
 /// Clinical trail.
 pub trait StreamRead<R: io::BufRead> {
     fn from_stream(stream: &mut R) -> Result<Self, io::Error>
@@ -16,6 +25,16 @@ pub enum Version {
     Html11,
     Html20,
     Html30,
+}
+
+impl Into<String> for Version {
+    fn into(self) -> String {
+        match self {
+            Version::Html11 => "HTTP/1.1".to_string(),
+            Version::Html20 => "HTTP/2".to_string(),
+            Version::Html30 => "HTTP/3".to_string(),
+        }
+    }
 }
 
 impl TryFrom<&str> for Version {
@@ -158,10 +177,7 @@ impl TryFrom<&str> for Method {
             "CONNECT" => Method::Connect,
             "OTIONS" => Method::Options,
             "TRACE" => Method::Trace,
-            _ => {
-                let msg = format!("unexpected content: {s}");
-                return Err(string_to_invalid_data_err(msg));
-            }
+            _ => http_tryfrm_err!(s),
         })
     }
 }
@@ -169,4 +185,103 @@ impl TryFrom<&str> for Method {
 fn string_to_invalid_data_err(s: String) -> io::Error {
     let err = Box::<dyn error::Error + Send + Sync>::from(s.as_str());
     io::Error::new(io::ErrorKind::InvalidData, err)
+}
+
+#[derive(Clone, Debug)]
+pub enum StatusCode {
+    Informational(ScInformational),
+    Successful(ScSuccessful),
+    Redirection,
+    ClientError,
+    ServerError,
+}
+
+#[derive(Clone, Debug)]
+pub enum ScInformational {
+    Continue,
+    SwitchingProtocols,
+}
+
+impl TryFrom<&str> for ScInformational {
+    type Error = io::Error;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        Ok(match s {
+            "100" => ScInformational::Continue,
+            "101" => ScInformational::SwitchingProtocols,
+            _ => http_tryfrm_err!(s),
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum ScSuccessful {
+    Ok,
+    Created,
+    Accepted,
+    NonAuthoritativeContent,
+    NoContent,
+    ResetContent,
+    PartialContent,
+    MultiStatus,
+    AlreadyReported,
+}
+
+impl Into<String> for ScSuccessful {
+    fn into(self) -> String {
+        match self {
+            ScSuccessful::Ok => "200 OK".to_string(),
+            ScSuccessful::Created => "201 Created".to_string(),
+            ScSuccessful::Accepted => "202 Accepted".to_string(),
+            ScSuccessful::NonAuthoritativeContent => {
+                "203 Non-Authoritative Information".to_string()
+            }
+            ScSuccessful::NoContent => "204 No Content".to_string(),
+            ScSuccessful::ResetContent => "205 Reset Content".to_string(),
+            ScSuccessful::PartialContent => "206 Partial Content".to_string(),
+            ScSuccessful::MultiStatus => "207 Multi-Status".to_string(),
+            ScSuccessful::AlreadyReported => "208 Already Reported".to_string(),
+        }
+    }
+}
+
+impl TryFrom<&str> for ScSuccessful {
+    type Error = io::Error;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        Ok(match s {
+            "200 OK" => ScSuccessful::Ok,
+            "201 Created" => ScSuccessful::Created,
+            "202 Accepted" => ScSuccessful::Accepted,
+            "203 Non-Authoritative Information" => ScSuccessful::NonAuthoritativeContent,
+            "204 No Content" => ScSuccessful::NoContent,
+            "205 Reset Content" => ScSuccessful::ResetContent,
+            "206 Partial Content" => ScSuccessful::PartialContent,
+            "207 Multi-Status" => ScSuccessful::MultiStatus,
+            "208 Already Reported" => ScSuccessful::AlreadyReported,
+            _ => http_tryfrm_err!(s),
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum ScClientError {
+    // BadRequest,
+    // Unauthorized,
+    // PaymentRequired,
+    NotFound,
+    // MethodNotAllowed,
+    // NotAcceptable,
+    // ProxyAuthenticationRequired,
+    // RequestTimeout,
+    // Conflict
+    // ...
+}
+
+impl Into<String> for ScClientError {
+    fn into(self) -> String {
+        match self {
+            ScClientError::NotFound => "404 Not Found".to_string(),
+        }
+    }
 }
