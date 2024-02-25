@@ -14,6 +14,6 @@ This is my personal repository for participating on the [coding challenges by Jo
 - [ ] Redis Server
 - [ ] grep
 - [ ] uniq Tool
-- [X] **Web Server**
+- [X] **Web Server (ccwebserv)**
 - [ ] URL Shortener
 - [ ] diff Tool
