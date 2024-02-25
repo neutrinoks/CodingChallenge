@@ -4,7 +4,7 @@ use crate::{
     http::{self, Method},
     Result,
 };
-use std::{fs, net::SocketAddr, sync::Arc};
+use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -183,13 +183,9 @@ async fn handle_client(mut stream: TcpStream, addr: SocketAddr) -> Result<()> {
 
 /// Simple method to process file content returning.
 async fn get_request(message: &http::Message, stream: &mut TcpStream) -> Result<()> {
-    let path = if message.startline.target == "/" {
-        std::path::PathBuf::from("website/index.html")
-    } else {
-        std::path::PathBuf::from(format!("website{}", message.startline.target).as_str())
-    };
-
+    let path = get_path(&message.startline)?;
     let exists = path.exists();
+
     let version = Into::<&str>::into(message.startline.version.clone()).to_string();
     let stcode = if exists {
         Into::<&str>::into(http::ScSuccessful::Ok)
@@ -206,4 +202,86 @@ async fn get_request(message: &http::Message, stream: &mut TcpStream) -> Result<
     }
 
     Ok(())
+}
+
+fn get_path(startline: &http::StartLine) -> Result<PathBuf> {
+    let mut website = website_path()?;
+    let mut req_target = website_path()?;
+
+    if startline.target.has_root() {
+        let target: PathBuf = startline.target.iter().skip(1).collect();
+        req_target.push(target);
+    } else {
+        req_target.push(&startline.target);
+    }
+    let req_target = absolutize(req_target)?;
+
+    if (req_target == website) || !req_target.starts_with(&website) {
+        website.push("index.html");
+        Ok(website)
+    } else {
+        Ok(req_target)
+    }
+}
+
+fn absolutize(path: PathBuf) -> Result<PathBuf> {
+    let mut iter = path.iter();
+    let mut path = PathBuf::from(iter.next().unwrap());
+
+    for dir in iter {
+        match dir.to_str() {
+            Some(".") => continue,
+            Some("..") => {
+                if !path.pop() {
+                    return Err(format!("path '{path:?}' does not exist").into());
+                }
+            }
+            Some(d) => path.push(d),
+            None => return Err("OsStr::to_str() fail".to_string().into()),
+        }
+    }
+
+    Ok(path)
+}
+
+fn website_path() -> Result<PathBuf> {
+    let mut website = std::env::current_dir()?;
+    website.push("website");
+    Ok(website)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{get_path, website_path};
+    use crate::http::StartLine;
+    use std::path::PathBuf;
+
+    fn index() -> PathBuf {
+        let mut website = website_path().unwrap();
+        website.push("index.html");
+        website
+    }
+
+    fn website() -> String {
+        website_path().unwrap().to_str().unwrap().to_string()
+    }
+
+    #[test]
+    fn path_works() {
+        let startline = StartLine::testpath("/");
+        assert_eq!(get_path(&startline).unwrap(), index());
+
+        let startline = StartLine::testpath("/index.html");
+        assert_eq!(get_path(&startline).unwrap(), index());
+
+        let startline = StartLine::testpath("/img/img.jpg");
+        let path: PathBuf = [website().as_str(), "img", "img.jpg"].iter().collect();
+        assert_eq!(get_path(&startline).unwrap(), path);
+    }
+
+    #[test]
+    fn path_cannot_escape_website_directory() {
+        let startline = StartLine::testpath("/../forbidden.html");
+        assert_eq!(get_path(&startline).unwrap(), index());
+    }
 }
