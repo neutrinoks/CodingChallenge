@@ -1,0 +1,12 @@
+[package]
+name = "ccwebserv"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+[dependencies]
+ctrlc-async = "3.2"
+futures = "0.3"
+tokio = { version = "1.36", features = ["full"] }
