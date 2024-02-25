@@ -20,8 +20,8 @@ pub struct App {
     listener: Arc<TcpListener>,
     /// Connected clients to be processed.
     clients: Arc<Mutex<Vec<(TcpStream, SocketAddr)>>>,
-    /// Running flag (otherwise stop listening and handling).
-    running: Arc<bool>,
+    /// Running flag shared in main tasks.
+    stop_signal: Arc<Mutex<bool>>,
 }
 
 impl App {
@@ -30,7 +30,7 @@ impl App {
         Ok(App {
             listener: Arc::new(TcpListener::bind(&addrs[..]).await?),
             clients: Arc::new(Mutex::new(vec![])),
-            running: Arc::new(true),
+            stop_signal: Arc::new(Mutex::new(false)),
         })
     }
 
@@ -38,22 +38,29 @@ impl App {
         // Spawn both processes and wait for them to the end.
         let mut set = JoinSet::new();
 
-        println!("prepare to listen");
+        println!("Prepare listening...");
 
         let listener = Arc::clone(&self.listener);
         let clients = Arc::clone(&self.clients);
-        let running = Arc::clone(&self.running);
+        let stop_signal = Arc::clone(&self.stop_signal);
         set.spawn(async move {
-            listen(listener, clients, running).await;
+            listen(listener, clients, stop_signal).await;
         });
 
-        println!("prepare to handle clients");
+        println!("Prepare client handling...");
 
         let clients = Arc::clone(&self.clients);
-        let running = Arc::clone(&self.running);
+        let stop_signal = Arc::clone(&self.stop_signal);
         set.spawn(async move {
-            handle_clients(clients, running).await;
+            handle_clients(clients, stop_signal).await;
         });
+
+        let stop_signal = Arc::clone(&self.stop_signal);
+        ctrlc_async::set_async_handler(async move {
+            println!("Shutting server down...");
+            let mut lock = stop_signal.lock().await;
+            *lock = true;
+        })?;
 
         set.join_next().await;
         set.join_next().await;
@@ -68,33 +75,42 @@ impl App {
 async fn listen(
     listener: Arc<TcpListener>,
     clients: Arc<Mutex<Vec<(TcpStream, SocketAddr)>>>,
-    running: Arc<bool>,
+    stop_signal: Arc<Mutex<bool>>,
 ) {
-    let mut running_int = true;
-    while running_int {
-        match listener.accept().await {
-            Ok((socket, addr)) => {
-                println!("incoming connection...");
-                let clients_clone = Arc::clone(&clients);
-                tokio::spawn(async move {
-                    let mut lock = clients_clone.lock().await;
-                    lock.push((socket, addr));
-                    println!("added a new client from addr");
-                });
-            }
-            Err(_err) => {
-                unimplemented!();
+    let limit = Duration::from_secs(1);
+
+    loop {
+        if let Ok(result) = tokio::time::timeout(limit, listener.accept()).await {
+            match result {
+                Ok((socket, addr)) => {
+                    let clients_clone = Arc::clone(&clients);
+                    tokio::spawn(async move {
+                        let mut lock = clients_clone.lock().await;
+                        lock.push((socket, addr));
+                    });
+                }
+                Err(_err) => {
+                    unimplemented!();
+                }
             }
         }
-        running_int = *running;
+
+        // Check for stop signal
+        let lock = stop_signal.lock().await;
+        if *lock {
+            break;
+        }
     }
+    println!("Stoped listening");
 }
 
-async fn handle_clients(clients: Arc<Mutex<Vec<(TcpStream, SocketAddr)>>>, running: Arc<bool>) {
+async fn handle_clients(
+    clients: Arc<Mutex<Vec<(TcpStream, SocketAddr)>>>,
+    stop_signal: Arc<Mutex<bool>>,
+) {
     let mut set = JoinSet::new();
-    let mut running_int = true;
 
-    while running_int {
+    loop {
         let mut lock = clients.lock().await;
         if lock.is_empty() {
             drop(lock);
@@ -102,18 +118,28 @@ async fn handle_clients(clients: Arc<Mutex<Vec<(TcpStream, SocketAddr)>>>, runni
         } else if let Some((stream, addr)) = lock.pop() {
             drop(lock);
             set.spawn(async move {
-                let _ = tokio::time::timeout(Duration::from_secs(5), handle_client(stream, addr)).await;
+                let _ =
+                    tokio::time::timeout(Duration::from_secs(5), handle_client(stream, addr)).await;
             });
-            println!("spawned a new handle-client task");
+        } else {
+            drop(lock);
         }
-        running_int = *running;
+
+        // Check for stop signal
+        let lock = stop_signal.lock().await;
+        if *lock {
+            break;
+        }
     }
 
     set.abort_all();
+    println!("Stoped handling clients");
 }
 
 /// Other main process is handling those clients in our waiting list.
-async fn handle_client(mut stream: TcpStream, _addr: SocketAddr) -> Result<()> {
+async fn handle_client(mut stream: TcpStream, addr: SocketAddr) -> Result<()> {
+    println!("New client at {addr:?}");
+
     let mut buffer = vec![0u8; 1024];
     let mut receiving = true;
     let mut n_bytes = 0;

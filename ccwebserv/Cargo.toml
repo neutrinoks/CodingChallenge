@@ -7,5 +7,6 @@ readme.workspace = true
 repository.workspace = true
 
 [dependencies]
-clap = "4.4.18"
-tokio = { version = "1.36.0", features = ["full"] }
+ctrlc-async = "3.2"
+futures = "0.3"
+tokio = { version = "1.36", features = ["full"] }

@@ -150,15 +150,6 @@ fn string_to_invalid_data_err(s: String) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, err)
 }
 
-// #[derive(Clone, Debug)]
-// pub enum StatusCode {
-//     Informational(ScInformational),
-//     Successful(ScSuccessful),
-//     Redirection,
-//     ClientError,
-//     ServerError,
-// }
-
 #[derive(Clone, Debug)]
 pub enum ScInformational {
     Continue,
