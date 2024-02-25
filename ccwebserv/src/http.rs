@@ -1,6 +1,6 @@
 //! Encpsulation of HTTP relevant implementations.
 
-use std::{error, fmt, io};
+use std::{error, fmt, io, path::PathBuf};
 
 /// Module internal macro for default error messages in `TryFrom<&str>` implementations for HTTP-
 /// type definitions.
@@ -91,8 +91,19 @@ impl TryFrom<&str> for Message {
 #[derive(Debug, Clone)]
 pub struct StartLine {
     pub method: Method,
-    pub target: String,
+    pub target: PathBuf,
     pub version: Version,
+}
+
+impl StartLine {
+    #[cfg(test)]
+    pub(crate) fn testpath(path: &str) -> StartLine {
+        StartLine {
+            method: Method::Get,
+            target: PathBuf::from(path),
+            version: Version::Html11,
+        }
+    }
 }
 
 impl TryFrom<&str> for StartLine {
@@ -104,7 +115,7 @@ impl TryFrom<&str> for StartLine {
         let mut parts = stream.split(' ');
 
         let method = Method::try_from(parts.next().ok_or(eof_err())?)?;
-        let target = parts.next().ok_or(eof_err())?.to_string();
+        let target = PathBuf::from(parts.next().ok_or(eof_err())?);
         let version = Version::try_from(parts.next().ok_or(eof_err())?)?;
 
         Ok(StartLine {
