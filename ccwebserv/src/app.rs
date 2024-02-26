@@ -4,7 +4,7 @@ use crate::{
     http::{self, Method},
     Result,
 };
-use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -197,7 +197,7 @@ async fn get_request(message: &http::Message, stream: &mut TcpStream) -> Result<
     let _ = stream.write_all(response.as_bytes()).await;
 
     if exists {
-        let file = fs::read_to_string(&path)?;
+        let file = tokio::fs::read_to_string(&path).await?;
         let _ = stream.write_all(file.as_bytes()).await;
     }
 
